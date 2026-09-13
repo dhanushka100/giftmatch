@@ -11,7 +11,6 @@ type Gift = {
   description: string;
   recipients: string[];
   occasions: string[];
-  shopUrl:  string;
 };
 
 const recipients = [
@@ -49,7 +48,6 @@ const gifts: Gift[] = [
       "A thoughtful personalized keepsake for displaying a favorite family memory.",
     recipients: ["Mom", "Dad", "Partner", "Friend"],
     occasions: ["Birthday", "Christmas", "Anniversary"],
-    shopUrl: "#"
   },
   {
     name: "Luxury Spa Gift Set",
@@ -199,7 +197,6 @@ export default function Home() {
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-pink-50 via-white to-purple-50 text-gray-900">
-
       {/* NAVBAR */}
       <nav className="sticky top-0 z-50 flex items-center justify-between border-b border-pink-100 bg-white/90 px-6 py-5 backdrop-blur-md md:px-12">
         <div className="text-2xl font-black text-pink-600">
@@ -233,7 +230,6 @@ export default function Home() {
       {/* HERO */}
       <section className="px-6 pb-10 pt-16 text-center md:pt-24">
         <div className="mx-auto max-w-4xl">
-
           <div className="mb-5 inline-block rounded-full bg-pink-100 px-4 py-2 text-sm font-semibold text-pink-700">
             ✨ Smart gift ideas for every occasion
           </div>
@@ -249,14 +245,12 @@ export default function Home() {
             Tell us who you&apos;re shopping for, the occasion, and your
             budget. GiftMatch will find ideas that fit.
           </p>
-
         </div>
       </section>
 
       {/* FINDER */}
       <section id="finder" className="px-5 pb-20">
         <div className="mx-auto max-w-5xl rounded-3xl bg-white p-6 shadow-xl shadow-pink-100 md:p-10">
-
           {/* RECIPIENT */}
           <div className="mb-10">
             <h2 className="text-2xl font-bold">
@@ -371,7 +365,6 @@ export default function Home() {
               Select a recipient, occasion, and budget to continue.
             </p>
           )}
-
         </div>
       </section>
 
@@ -379,7 +372,6 @@ export default function Home() {
       {showResults && (
         <section id="results" className="bg-white px-5 py-20">
           <div className="mx-auto max-w-6xl">
-
             <div className="mb-12 text-center">
               <div className="mb-4 text-5xl">🎁</div>
 
@@ -398,84 +390,82 @@ export default function Home() {
 
             {recommendations.length > 0 ? (
               <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-
                 {recommendations.map((gift) => (
-  <div
-    key={gift.name}
-    className="overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-md transition hover:-translate-y-2 hover:shadow-2xl"
-  >
-    {/* PRODUCT PHOTO */}
-    <div className="relative h-60 overflow-hidden bg-gray-100">
-      <img
-        src={gift.image}
-        alt={gift.name}
-        className="h-full w-full object-cover transition duration-500 hover:scale-105"
-      />
+                  <div
+                    key={gift.name}
+                    className="overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-md transition hover:-translate-y-2 hover:shadow-2xl"
+                  >
+                    {/* PRODUCT PHOTO */}
+                    <div className="relative h-60 overflow-hidden bg-gray-100">
+                      <img
+                        src={gift.image}
+                        alt={gift.name}
+                        className="h-full w-full object-cover transition duration-500 hover:scale-105"
+                      />
 
-      <div className="absolute left-3 top-3 rounded-full bg-pink-600 px-3 py-1 text-xs font-bold text-white">
-        ⭐ Recommended
-      </div>
-    </div>
+                      <div className="absolute left-3 top-3 rounded-full bg-pink-600 px-3 py-1 text-xs font-bold text-white">
+                        ⭐ Recommended
+                      </div>
+                    </div>
 
-    {/* PRODUCT INFO */}
-    <div className="p-5">
+                    {/* PRODUCT INFO */}
+                    <div className="p-5">
+                      {/* RATING */}
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-bold text-yellow-500">
+                          {"★".repeat(Math.floor(gift.rating))}
+                        </span>
 
-      {/* RATING */}
-      <div className="flex items-center gap-2">
-        <span className="text-sm font-bold text-yellow-500">
-          {"★".repeat(Math.floor(gift.rating))}
-        </span>
+                        <span className="text-sm font-bold text-gray-700">
+                          {gift.rating}
+                        </span>
 
-        <span className="text-sm font-bold text-gray-700">
-          {gift.rating}
-        </span>
+                        <span className="text-sm text-gray-400">
+                          ({gift.reviews.toLocaleString()})
+                        </span>
+                      </div>
 
-        <span className="text-sm text-gray-400">
-          ({gift.reviews.toLocaleString()})
-        </span>
-      </div>
+                      {/* NAME */}
+                      <h3 className="mt-3 text-xl font-bold text-gray-900">
+                        {gift.name}
+                      </h3>
 
-      {/* NAME */}
-      <h3 className="mt-3 text-xl font-bold text-gray-900">
-        {gift.name}
-      </h3>
+                      {/* DESCRIPTION */}
+                      <p className="mt-2 min-h-[60px] text-sm leading-6 text-gray-500">
+                        {gift.description}
+                      </p>
 
-      {/* DESCRIPTION */}
-      <p className="mt-2 min-h-[60px] text-sm leading-6 text-gray-500">
-        {gift.description}
-      </p>
+                      {/* PRICE */}
+                      <div className="mt-4 flex items-center justify-between">
+                        <span className="text-2xl font-black text-gray-900">
+                          ${gift.price.toFixed(2)}
+                        </span>
 
-      {/* PRICE */}
-      <div className="mt-4 flex items-center justify-between">
-        <span className="text-2xl font-black text-gray-900">
-          ${gift.price.toFixed(2)}
-        </span>
+                        <span className="text-xs font-bold text-green-600">
+                          ✓ Great Match
+                        </span>
+                      </div>
 
-        <span className="text-xs font-bold text-green-600">
-          ✓ Great Match
-        </span>
-      </div>
-
-      {/* SHOP BUTTON */}
-      <button
-        onClick={() =>
-      window.open(
-  `https://www.amazon.com/s?k=${encodeURIComponent(gift.name)}`,
-  "_blank"
-)
-        }
-        className="mt-5 w-full rounded-xl bg-pink-600 py-3 font-bold text-white transition hover:bg-pink-700"
-      >
-        🛒 Shop Now →
-      </button>
-
-    </div>
-  </div>
-))}
+                      {/* SHOP BUTTON */}
+                      <button
+                        onClick={() =>
+                          window.open(
+                            `https://www.amazon.com/s?k=${encodeURIComponent(
+                              gift.name
+                            )}`,
+                            "_blank"
+                          )
+                        }
+                        className="mt-5 w-full rounded-xl bg-pink-600 py-3 font-bold text-white transition hover:bg-pink-700"
+                      >
+                        🛒 Shop Now →
+                      </button>
+                    </div>
+                  </div>
+                ))}
               </div>
             ) : (
               <div className="mx-auto max-w-xl rounded-3xl bg-gray-50 p-10 text-center">
-
                 <div className="text-6xl">🤔</div>
 
                 <h3 className="mt-5 text-2xl font-bold">
@@ -486,10 +476,8 @@ export default function Home() {
                   We couldn&apos;t find an exact match for this combination
                   yet. Try another budget or occasion.
                 </p>
-
               </div>
             )}
-
           </div>
         </section>
       )}
@@ -497,13 +485,11 @@ export default function Home() {
       {/* HOW IT WORKS */}
       <section id="how" className="px-5 py-20">
         <div className="mx-auto max-w-5xl text-center">
-
           <h2 className="text-4xl font-black">
             How GiftMatch Works
           </h2>
 
           <div className="mt-12 grid gap-8 md:grid-cols-3">
-
             <div className="rounded-3xl bg-white p-8 shadow-md">
               <div className="text-5xl">👤</div>
               <h3 className="mt-5 text-xl font-bold">
@@ -533,7 +519,6 @@ export default function Home() {
                 Discover gifts matched to your choices.
               </p>
             </div>
-
           </div>
         </div>
       </section>
@@ -552,7 +537,6 @@ export default function Home() {
           © 2026 GiftMatch
         </p>
       </footer>
-
     </main>
   );
 }
