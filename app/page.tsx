@@ -336,11 +336,7 @@ export default function Home() {
     );
   }, [mysteryRecipient]);
 
-  const referralLink =
-    typeof window !== "undefined"
-      ? `${window.location.origin}/?ref=${referralId}`
-      : `https://giftmatch.app/?ref=${referralId}`;
-
+ const referralLink = `https://giftmatch-taupe.vercel.app/?ref=${referralId}`;
   const nextReward =
     referralRewards.find((reward) => referrals < reward.referrals) ||
     referralRewards[referralRewards.length - 1];
