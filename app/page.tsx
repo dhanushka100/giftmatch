@@ -9,12 +9,8 @@ type Gift = {
   name: string;
   image: string;
   price: number;
-  rating: number;
-  reviews: number;
   description: string;
-  recipients: string[];
-  occasions: string[];
-  halloween?: boolean;
+  url: string;
 };
 
 type MysteryGift = {
@@ -49,180 +45,46 @@ const budgets = [
   { label: "$250+", min: 250, max: 1000 },
 ];
 
-const gifts: Gift[] = [
-  {
-    name: "Personalized Photo Frame",
-    image:
-      "https://images.unsplash.com/photo-1513519245088-0e12902e5a38?auto=format&fit=crop&w=900&q=85",
-    price: 24.99,
-    rating: 4.8,
-    reviews: 12435,
-    description:
-      "A thoughtful personalized keepsake for displaying a favorite family memory.",
-    recipients: ["Mom", "Dad", "Partner", "Friend"],
-    occasions: ["Birthday", "Christmas", "Anniversary"],
-  },
-  {
-    name: "Luxury Spa Gift Set",
-    image:
-      "https://images.unsplash.com/photo-1608571423902-eed4a5ad8108?auto=format&fit=crop&w=900&q=85",
-    price: 39.99,
-    rating: 4.7,
-    reviews: 8942,
-    description:
-      "A relaxing self-care collection made for a cozy spa night at home.",
-    recipients: ["Mom", "Partner", "Friend"],
-    occasions: ["Birthday", "Christmas"],
-  },
-  {
-    name: "Premium Coffee Gift Set",
-    image:
-      "https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?auto=format&fit=crop&w=900&q=85",
-    price: 42.99,
-    rating: 4.6,
-    reviews: 6521,
-    description:
-      "A gourmet coffee gift with a stylish mug and premium coffee blends.",
-    recipients: ["Dad", "Friend", "Coworker"],
-    occasions: ["Birthday", "Christmas", "Secret Santa"],
-  },
-  {
-    name: "Heart Necklace",
-    image:
-      "https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?auto=format&fit=crop&w=900&q=85",
-    price: 49.99,
-    rating: 4.7,
-    reviews: 9314,
-    description:
-      "A timeless heart necklace for someone special in your life.",
-    recipients: ["Partner", "Mom"],
-    occasions: ["Birthday", "Anniversary", "Christmas"],
-  },
-  {
-    name: "Cozy Throw Blanket",
-    image:
-      "https://images.unsplash.com/photo-1584100936595-c0654b55a2e2?auto=format&fit=crop&w=900&q=85",
-    price: 27.99,
-    rating: 4.8,
-    reviews: 5276,
-    description:
-      "A soft and cozy throw blanket perfect for relaxing at home.",
-    recipients: ["Mom", "Dad", "Partner", "Friend"],
-    occasions: ["Birthday", "Christmas"],
-  },
-  {
-    name: "Fresh Flower Bouquet",
-    image:
-      "https://images.unsplash.com/photo-1490750967868-88aa4486c946?auto=format&fit=crop&w=900&q=85",
-    price: 29.99,
-    rating: 4.6,
-    reviews: 4832,
-    description:
-      "A beautiful flower arrangement for birthdays and special moments.",
-    recipients: ["Mom", "Partner", "Friend"],
-    occasions: ["Birthday", "Anniversary", "Christmas"],
-  },
-  {
-    name: "Luxury Candle Set",
-    image:
-      "https://images.unsplash.com/photo-1603006905003-be475563bc59?auto=format&fit=crop&w=900&q=85",
-    price: 45,
-    rating: 4.7,
-    reviews: 3921,
-    description:
-      "Elegant scented candles that create a warm and relaxing atmosphere.",
-    recipients: ["Mom", "Partner", "Friend", "Coworker"],
-    occasions: ["Birthday", "Christmas", "Anniversary", "Halloween"],
-    halloween: true,
-  },
-  {
-    name: "Personalized Coffee Mug",
-    image:
-      "https://images.unsplash.com/photo-1514228742587-6b1558fcf93a?auto=format&fit=crop&w=900&q=85",
-    price: 22.99,
-    rating: 4.8,
-    reviews: 7620,
-    description:
-      "A personalized mug that makes every morning coffee more special.",
-    recipients: ["Mom", "Dad", "Friend", "Coworker"],
-    occasions: ["Birthday", "Christmas", "Secret Santa"],
-  },
-  {
-    name: "Wireless Headphones",
-    image:
-      "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=900&q=85",
-    price: 89.99,
-    rating: 4.7,
-    reviews: 11042,
-    description:
-      "A practical tech gift for music, podcasts and everyday entertainment.",
-    recipients: ["Partner", "Friend", "Coworker", "Dad"],
-    occasions: ["Birthday", "Christmas"],
-  },
-  {
-    name: "Smartwatch",
-    image:
-      "https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=900&q=85",
-    price: 149.99,
-    rating: 4.6,
-    reviews: 15420,
-    description: "A stylish smartwatch that makes a great premium gift.",
-    recipients: ["Dad", "Partner", "Friend"],
-    occasions: ["Birthday", "Christmas", "Anniversary"],
-  },
-  {
-    name: "Halloween Scented Candle",
-    image:
-      "https://images.unsplash.com/photo-1602874801006-e26f6e1c8d9c?auto=format&fit=crop&w=900&q=85",
-    price: 19.99,
-    rating: 4.8,
-    reviews: 3842,
-    description:
-      "A cozy Halloween-inspired candle that adds a warm spooky atmosphere.",
-    recipients: ["Mom", "Partner", "Friend", "Coworker"],
-    occasions: ["Halloween"],
-    halloween: true,
-  },
-  {
-    name: "Cute Halloween Mug",
-    image:
-      "https://images.unsplash.com/photo-1577937927133-66ef06acdf18?auto=format&fit=crop&w=900&q=85",
-    price: 21.99,
-    rating: 4.7,
-    reviews: 4210,
-    description:
-      "A fun Halloween mug for coffee, tea and cozy autumn mornings.",
-    recipients: ["Mom", "Dad", "Friend", "Coworker"],
-    occasions: ["Halloween"],
-    halloween: true,
-  },
-  {
-    name: "Halloween Gift Basket",
-    image:
-      "https://images.unsplash.com/photo-1509557965875-b88c97052f0e?auto=format&fit=crop&w=900&q=85",
-    price: 34.99,
-    rating: 4.8,
-    reviews: 2961,
-    description:
-      "A fun Halloween-themed gift basket packed with seasonal surprises.",
-    recipients: ["Friend", "Partner", "Coworker"],
-    occasions: ["Halloween"],
-    halloween: true,
-  },
-  {
-    name: "Spooky Home Decoration Set",
-    image:
-      "https://images.unsplash.com/photo-1508361001413-7a9e0b6c1c5a?auto=format&fit=crop&w=900&q=85",
-    price: 39.99,
-    rating: 4.6,
-    reviews: 1852,
-    description:
-      "Cute spooky decorations for creating a fun Halloween atmosphere.",
-    recipients: ["Friend", "Partner", "Mom"],
-    occasions: ["Halloween"],
-    halloween: true,
-  },
-];
+const [gifts, setGifts] = useState<Gift[]>([]);
+const [productsLoading, setProductsLoading] = useState(true);
+
+useEffect(() => {
+  async function loadGifts() {
+    const { data, error } = await supabase
+      .from("products")
+      .select("name, description, price, image, url");
+
+    if (error) {
+      console.error("Error loading products:", error);
+      setProductsLoading(false);
+      return;
+    }
+
+    setGifts(data || []);
+    setProductsLoading(false);
+  }
+
+  loadGifts();
+}, []);
+
+useEffect(() => {
+  async function loadGifts() {
+    const { data, error } = await supabase
+      .from("products")
+      .select("*");
+
+    if (error) {
+      console.error("Error loading products:", error);
+      setProductsLoading(false);
+      return;
+    }
+
+    setGifts(data || []);
+    setProductsLoading(false);
+  }
+
+  loadGifts();
+}, []);
 
 const mysteryGifts: MysteryGift[] = [
   {
@@ -431,21 +293,17 @@ export default function Home() {
   }, []);
 
   const recommendations = useMemo(() => {
-    if (!recipient || !occasion || !selectedBudget) {
-      return [];
-    }
+  if (!recipient || !occasion || !selectedBudget) {
+    return [];
+  }
 
-    return gifts.filter((gift) => {
-      const recipientMatch = gift.recipients.includes(recipient);
-      const occasionMatch = gift.occasions.includes(occasion);
-
-      const budgetMatch =
-        gift.price >= selectedBudget.min &&
-        gift.price <= selectedBudget.max;
-
-      return recipientMatch && occasionMatch && budgetMatch;
-    });
-  }, [recipient, occasion, selectedBudget]);
+  return gifts.filter((gift) => {
+    return (
+      gift.price >= selectedBudget.min &&
+      gift.price <= selectedBudget.max
+    );
+  });
+}, [gifts, recipient, occasion, selectedBudget]);
 
   const mysteryRecommendations = useMemo(() => {
     return mysteryGifts.filter((gift) =>
@@ -1863,7 +1721,7 @@ export default function Home() {
                               : "bg-white text-pink-600"
                           }`}
                         >
-                          {gift.halloween || isHalloween
+                          { isHalloween
                             ? "🎃 Spooky Pick"
                             : "⭐ Great Match"}
                         </div>
@@ -1874,25 +1732,7 @@ export default function Home() {
                       </div>
 
                       <div className="p-6">
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm text-yellow-500">
-                            ★★★★★
-                          </span>
-
-                          <span
-                            className={`text-sm font-black ${
-                              isHalloween
-                                ? "text-white"
-                                : ""
-                            }`}
-                          >
-                            {gift.rating}
-                          </span>
-
-                          <span className="text-xs text-slate-400">
-                            ({gift.reviews.toLocaleString()})
-                          </span>
-                        </div>
+                       
 
                         <h3
                           className={`mt-4 text-xl font-black ${
@@ -1913,22 +1753,17 @@ export default function Home() {
                         </p>
 
                         <button
-                          onClick={() =>
-                            window.open(
-                              `https://www.amazon.com/s?k=${encodeURIComponent(
-                                gift.name
-                              )}`,
-                              "_blank"
-                            )
-                          }
-                          className={`mt-5 w-full rounded-xl py-3.5 font-black text-white transition ${
-                            isHalloween
-                              ? "bg-orange-600 hover:bg-orange-500"
-                              : "bg-slate-900 hover:bg-pink-600"
-                          }`}
-                        >
-                          🛒 View Gift →
-                        </button>
+  onClick={() => {
+    window.open(gift.url, "_blank");
+  }}
+  className={`mt-5 w-full rounded-xl py-3.5 font-black text-white transition ${
+    isHalloween
+      ? "bg-orange-600 hover:bg-orange-500"
+      : "bg-slate-900 hover:bg-pink-600"
+  }`}
+>
+  🛒 View Gift →
+</button>
                       </div>
                     </div>
                   ))}
