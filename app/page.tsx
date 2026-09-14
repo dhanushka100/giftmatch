@@ -1716,7 +1716,7 @@ export default function Home() {
 
                         <div
                           className={`absolute left-4 top-4 rounded-full px-3 py-1.5 text-xs font-black ${
-                            gift.halloween || isHalloween
+                             isHalloween
                               ? "bg-orange-500 text-white"
                               : "bg-white text-pink-600"
                           }`}
