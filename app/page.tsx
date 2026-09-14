@@ -97,6 +97,8 @@ export default function Home() {
       const { data, error } = await supabase
         .from("products")
         .select("name, description, price, image, url");
+        console.log("PRODUCTS FROM SUPABASE:", data);
+        console.log("SUPABASE ERROR:", error);
 
       if (error) {
         console.error("Error loading products:", error);
