@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
@@ -45,46 +44,6 @@ const budgets = [
   { label: "$250+", min: 250, max: 1000 },
 ];
 
-const [gifts, setGifts] = useState<Gift[]>([]);
-const [productsLoading, setProductsLoading] = useState(true);
-
-useEffect(() => {
-  async function loadGifts() {
-    const { data, error } = await supabase
-      .from("products")
-      .select("name, description, price, image, url");
-
-    if (error) {
-      console.error("Error loading products:", error);
-      setProductsLoading(false);
-      return;
-    }
-
-    setGifts(data || []);
-    setProductsLoading(false);
-  }
-
-  loadGifts();
-}, []);
-
-useEffect(() => {
-  async function loadGifts() {
-    const { data, error } = await supabase
-      .from("products")
-      .select("*");
-
-    if (error) {
-      console.error("Error loading products:", error);
-      setProductsLoading(false);
-      return;
-    }
-
-    setGifts(data || []);
-    setProductsLoading(false);
-  }
-
-  loadGifts();
-}, []);
 
 const mysteryGifts: MysteryGift[] = [
   {
@@ -129,6 +88,29 @@ const referralRewards = [
 ];
 
 export default function Home() {
+  
+  const [gifts, setGifts] = useState<Gift[]>([]);
+  const [productsLoading, setProductsLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadGifts() {
+      const { data, error } = await supabase
+        .from("products")
+        .select("name, description, price, image, url");
+
+      if (error) {
+        console.error("Error loading products:", error);
+        setProductsLoading(false);
+        return;
+      }
+
+      setGifts(data || []);
+      setProductsLoading(false);
+    }
+
+    loadGifts();
+  }, []);
+
   const [recipient, setRecipient] = useState("");
   const [occasion, setOccasion] = useState("");
   const [budget, setBudget] = useState("");
@@ -174,19 +156,17 @@ export default function Home() {
         setReferralId(profile.referral_code);
       }
 
-      const {
-        data: count,
-        error: countError,
-      } = await supabase.rpc("get_my_referral_count");
+      const { data: count, error: countError } = await supabase.rpc(
+        "get_my_referral_count"
+      );
 
       if (!countError && typeof count === "number") {
         setReferrals(count);
       }
 
-      const {
-        data: claims,
-        error: claimsError,
-      } = await supabase.rpc("get_my_claimed_rewards");
+      const { data: claims, error: claimsError } = await supabase.rpc(
+        "get_my_claimed_rewards"
+      );
 
       if (!claimsError && claims) {
         setClaimedRewards(
@@ -206,10 +186,7 @@ export default function Home() {
       if (ref) {
         cleanRef = ref.trim().toUpperCase();
 
-        localStorage.setItem(
-          "giftmatch_pending_referral",
-          cleanRef
-        );
+        localStorage.setItem("giftmatch_pending_referral", cleanRef);
 
         setReferralRequired(true);
       }
@@ -228,9 +205,7 @@ export default function Home() {
           );
 
           if (!referralError) {
-            localStorage.removeItem(
-              "giftmatch_pending_referral"
-            );
+            localStorage.removeItem("giftmatch_pending_referral");
           }
         }
 
@@ -249,42 +224,40 @@ export default function Home() {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
-        if (!mounted) return;
+    } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      if (!mounted) return;
 
-        if (session?.user) {
-          setUser(session.user);
+      if (session?.user) {
+        setUser(session.user);
 
-          const pendingReferral = localStorage.getItem(
-            "giftmatch_pending_referral"
+        const pendingReferral = localStorage.getItem(
+          "giftmatch_pending_referral"
+        );
+
+        if (pendingReferral) {
+          const { error: referralError } = await supabase.rpc(
+            "register_referral",
+            {
+              ref_code: pendingReferral,
+            }
           );
 
-          if (pendingReferral) {
-            const { error: referralError } =
-              await supabase.rpc("register_referral", {
-                ref_code: pendingReferral,
-              });
-
-            if (!referralError) {
-              localStorage.removeItem(
-                "giftmatch_pending_referral"
-              );
-            }
+          if (!referralError) {
+            localStorage.removeItem("giftmatch_pending_referral");
           }
-
-          await loadUserData(session.user);
-
-          setReferralRequired(false);
-          setAuthOpen(false);
-        } else {
-          setUser(null);
-          setReferralId("");
-          setReferrals(0);
-          setClaimedRewards([]);
         }
+
+        await loadUserData(session.user);
+
+        setReferralRequired(false);
+        setAuthOpen(false);
+      } else {
+        setUser(null);
+        setReferralId("");
+        setReferrals(0);
+        setClaimedRewards([]);
       }
-    );
+    });
 
     return () => {
       mounted = false;
@@ -292,18 +265,19 @@ export default function Home() {
     };
   }, []);
 
+  // STEP 4 — Budget filter මත පමණක් පදනම් වූ Recommendations logic එක
   const recommendations = useMemo(() => {
-  if (!recipient || !occasion || !selectedBudget) {
-    return [];
-  }
+    if (!recipient || !occasion || !selectedBudget) {
+      return [];
+    }
 
-  return gifts.filter((gift) => {
-    return (
-      gift.price >= selectedBudget.min &&
-      gift.price <= selectedBudget.max
-    );
-  });
-}, [gifts, recipient, occasion, selectedBudget]);
+    return gifts.filter((gift) => {
+      return (
+        gift.price >= selectedBudget.min &&
+        gift.price <= selectedBudget.max
+      );
+    });
+  }, [gifts, recipient, occasion, selectedBudget]);
 
   const mysteryRecommendations = useMemo(() => {
     return mysteryGifts.filter((gift) =>
@@ -316,9 +290,8 @@ export default function Home() {
     : "";
 
   const nextReward =
-    referralRewards.find(
-      (reward) => referrals < reward.referrals
-    ) || referralRewards[referralRewards.length - 1];
+    referralRewards.find((reward) => referrals < reward.referrals) ||
+    referralRewards[referralRewards.length - 1];
 
   const previousTarget =
     referralRewards
@@ -397,11 +370,10 @@ export default function Home() {
         );
       }
     } else {
-      const { error } =
-        await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
 
       if (error) {
         setAuthMessage(error.message);
@@ -428,35 +400,26 @@ export default function Home() {
       return;
     }
 
-    if (
-      referrals < target ||
-      claimedRewards.includes(target)
-    ) {
+    if (referrals < target || claimedRewards.includes(target)) {
       return;
     }
 
-    const { data, error } = await supabase.rpc(
-      "claim_referral_reward",
-      {
-        target_referrals: target,
-      }
-    );
+    const { data, error } = await supabase.rpc("claim_referral_reward", {
+      target_referrals: target,
+    });
 
     if (error || data !== true) {
       return;
     }
 
     setClaimedRewards((current) =>
-      current.includes(target)
-        ? current
-        : [...current, target]
+      current.includes(target) ? current : [...current, target]
     );
   }
 
   return (
     <>
       {/* AUTH MODAL */}
-
       {authOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-5 backdrop-blur-sm">
           <div className="w-full max-w-md rounded-3xl bg-white p-7 shadow-2xl">
@@ -481,9 +444,7 @@ export default function Home() {
                 type="email"
                 placeholder="Email address"
                 value={email}
-                onChange={(e) =>
-                  setEmail(e.target.value)
-                }
+                onChange={(e) => setEmail(e.target.value)}
                 className="w-full rounded-xl border border-slate-200 px-4 py-3 text-slate-900 outline-none focus:border-purple-500"
               />
 
@@ -491,9 +452,7 @@ export default function Home() {
                 type="password"
                 placeholder="Password"
                 value={password}
-                onChange={(e) =>
-                  setPassword(e.target.value)
-                }
+                onChange={(e) => setPassword(e.target.value)}
                 className="w-full rounded-xl border border-slate-200 px-4 py-3 text-slate-900 outline-none focus:border-purple-500"
               />
 
@@ -569,7 +528,6 @@ export default function Home() {
         }`}
       >
         {/* NAVBAR */}
-
         <nav
           className={`sticky top-0 z-50 border-b backdrop-blur-xl ${
             isHalloween
@@ -605,9 +563,7 @@ export default function Home() {
                 Gift
                 <span
                   className={
-                    isHalloween
-                      ? "text-orange-500"
-                      : "text-pink-600"
+                    isHalloween ? "text-orange-500" : "text-pink-600"
                   }
                 >
                   Match
@@ -617,26 +573,18 @@ export default function Home() {
 
             <div
               className={`hidden items-center gap-7 text-sm font-bold md:flex ${
-                isHalloween
-                  ? "text-purple-200"
-                  : "text-slate-600"
+                isHalloween ? "text-purple-200" : "text-slate-600"
               }`}
             >
               <a href="#finder" className="hover:text-pink-500">
                 Gift Finder
               </a>
 
-              <a
-                href="#mystery"
-                className="hover:text-purple-500"
-              >
+              <a href="#mystery" className="hover:text-purple-500">
                 Mystery Gifts
               </a>
 
-              <a
-                href="#rewards"
-                className="hover:text-orange-500"
-              >
+              <a href="#rewards" className="hover:text-orange-500">
                 Rewards
               </a>
 
@@ -661,11 +609,9 @@ export default function Home() {
 
               <button
                 onClick={() =>
-                  document
-                    .getElementById("mystery")
-                    ?.scrollIntoView({
-                      behavior: "smooth",
-                    })
+                  document.getElementById("mystery")?.scrollIntoView({
+                    behavior: "smooth",
+                  })
                 }
                 className={`rounded-full px-5 py-2.5 text-sm font-black text-white shadow-lg transition hover:-translate-y-0.5 ${
                   isHalloween
@@ -680,7 +626,6 @@ export default function Home() {
         </nav>
 
         {/* HERO */}
-
         <section
           className={`relative overflow-hidden px-5 pb-24 pt-20 md:pb-32 md:pt-28 ${
             isHalloween
@@ -726,7 +671,7 @@ export default function Home() {
                 isHalloween ? "text-white" : ""
               }`}
             >
-              Find a gift they&apos;ll
+              Find a gift they'll
               <span
                 className={`block bg-clip-text text-transparent ${
                   isHalloween
@@ -740,23 +685,19 @@ export default function Home() {
 
             <p
               className={`mx-auto mt-7 max-w-2xl text-base leading-7 md:text-xl ${
-                isHalloween
-                  ? "text-purple-200"
-                  : "text-slate-600"
+                isHalloween ? "text-purple-200" : "text-slate-600"
               }`}
             >
-              Find thoughtful gifts, discover mystery surprises,
-              and invite friends to unlock exclusive rewards.
+              Find thoughtful gifts, discover mystery surprises, and invite
+              friends to unlock exclusive rewards.
             </p>
 
             <div className="mt-9 flex flex-col justify-center gap-3 sm:flex-row">
               <button
                 onClick={() =>
-                  document
-                    .getElementById("finder")
-                    ?.scrollIntoView({
-                      behavior: "smooth",
-                    })
+                  document.getElementById("finder")?.scrollIntoView({
+                    behavior: "smooth",
+                  })
                 }
                 className={`rounded-2xl px-8 py-4 font-black text-white shadow-xl transition hover:-translate-y-1 ${
                   isHalloween
@@ -769,11 +710,9 @@ export default function Home() {
 
               <button
                 onClick={() =>
-                  document
-                    .getElementById("mystery")
-                    ?.scrollIntoView({
-                      behavior: "smooth",
-                    })
+                  document.getElementById("mystery")?.scrollIntoView({
+                    behavior: "smooth",
+                  })
                 }
                 className={`rounded-2xl border-2 px-8 py-4 font-black transition hover:-translate-y-1 ${
                   isHalloween
@@ -787,9 +726,7 @@ export default function Home() {
 
             <div
               className={`mt-12 flex flex-wrap justify-center gap-6 text-sm font-bold ${
-                isHalloween
-                  ? "text-purple-300"
-                  : "text-slate-500"
+                isHalloween ? "text-purple-300" : "text-slate-500"
               }`}
             >
               <span>✓ Personalized matches</span>
@@ -801,7 +738,6 @@ export default function Home() {
         </section>
 
         {/* MYSTERY GIFTS */}
-
         <section
           id="mystery"
           className={`scroll-mt-20 px-5 py-24 ${
@@ -822,9 +758,7 @@ export default function Home() {
 
               <p
                 className={`text-sm font-black uppercase tracking-widest ${
-                  isHalloween
-                    ? "text-orange-400"
-                    : "text-pink-600"
+                  isHalloween ? "text-orange-400" : "text-pink-600"
                 }`}
               >
                 Mystery Gifts
@@ -840,13 +774,11 @@ export default function Home() {
 
               <p
                 className={`mt-5 ${
-                  isHalloween
-                    ? "text-purple-300"
-                    : "text-slate-500"
+                  isHalloween ? "text-purple-300" : "text-slate-500"
                 }`}
               >
-                Choose who the mystery gift is for and discover
-                surprise options made for them.
+                Choose who the mystery gift is for and discover surprise options
+                made for them.
               </p>
             </div>
 
@@ -871,9 +803,7 @@ export default function Home() {
                 {recipients.map((item) => (
                   <button
                     key={item.name}
-                    onClick={() =>
-                      setMysteryRecipient(item.name)
-                    }
+                    onClick={() => setMysteryRecipient(item.name)}
                     className={`rounded-2xl border-2 p-4 font-black transition hover:-translate-y-1 ${
                       mysteryRecipient === item.name
                         ? isHalloween
@@ -884,13 +814,9 @@ export default function Home() {
                         : "border-slate-200 bg-white hover:border-pink-300"
                     }`}
                   >
-                    <div className="text-3xl">
-                      {item.emoji}
-                    </div>
+                    <div className="text-3xl">{item.emoji}</div>
 
-                    <div className="mt-2">
-                      {item.name}
-                    </div>
+                    <div className="mt-2">{item.name}</div>
                   </button>
                 ))}
               </div>
@@ -932,9 +858,7 @@ export default function Home() {
 
                   <p
                     className={`mt-3 min-h-[56px] text-sm leading-6 ${
-                      isHalloween
-                        ? "text-purple-300"
-                        : "text-slate-500"
+                      isHalloween ? "text-purple-300" : "text-slate-500"
                     }`}
                   >
                     {gift.description}
@@ -948,9 +872,7 @@ export default function Home() {
 
                       <div
                         className={`mt-1 text-3xl font-black ${
-                          isHalloween
-                            ? "text-orange-400"
-                            : "text-purple-700"
+                          isHalloween ? "text-orange-400" : "text-purple-700"
                         }`}
                       >
                         ${gift.price}
@@ -959,11 +881,9 @@ export default function Home() {
 
                     <button
                       onClick={() =>
-                        document
-                          .getElementById("rewards")
-                          ?.scrollIntoView({
-                            behavior: "smooth",
-                          })
+                        document.getElementById("rewards")?.scrollIntoView({
+                          behavior: "smooth",
+                        })
                       }
                       className={`rounded-xl px-5 py-3 font-black text-white transition ${
                         isHalloween
@@ -981,7 +901,6 @@ export default function Home() {
         </section>
 
         {/* REFERRAL REWARDS */}
-
         <section
           id="rewards"
           className={`scroll-mt-20 px-5 py-24 ${
@@ -996,9 +915,7 @@ export default function Home() {
 
               <p
                 className={`mt-5 text-sm font-black uppercase tracking-widest ${
-                  isHalloween
-                    ? "text-orange-400"
-                    : "text-purple-600"
+                  isHalloween ? "text-orange-400" : "text-purple-600"
                 }`}
               >
                 Referral Rewards
@@ -1014,18 +931,15 @@ export default function Home() {
 
               <p
                 className={`mt-5 ${
-                  isHalloween
-                    ? "text-purple-300"
-                    : "text-slate-500"
+                  isHalloween ? "text-purple-300" : "text-slate-500"
                 }`}
               >
-                Share your GiftMatch link and unlock bigger mystery
-                rewards as your referral count grows.
+                Share your GiftMatch link and unlock bigger mystery rewards as
+                your referral count grows.
               </p>
             </div>
 
             {/* REFERRAL BOX */}
-
             <div
               className={`mt-12 overflow-hidden rounded-[2rem] border shadow-2xl ${
                 isHalloween
@@ -1044,14 +958,10 @@ export default function Home() {
                   <div>
                     <div
                       className={`text-sm font-black uppercase tracking-widest ${
-                        isHalloween
-                          ? "text-orange-400"
-                          : "text-purple-600"
+                        isHalloween ? "text-orange-400" : "text-purple-600"
                       }`}
                     >
-                      {user
-                        ? "Your referral code"
-                        : "Referral rewards"}
+                      {user ? "Your referral code" : "Referral rewards"}
                     </div>
 
                     <div
@@ -1059,16 +969,12 @@ export default function Home() {
                         isHalloween ? "text-white" : ""
                       }`}
                     >
-                      {user
-                        ? referralId || "------"
-                        : "LOGIN"}
+                      {user ? referralId || "------" : "LOGIN"}
                     </div>
 
                     <p
                       className={`mt-2 text-sm ${
-                        isHalloween
-                          ? "text-purple-300"
-                          : "text-slate-500"
+                        isHalloween ? "text-purple-300" : "text-slate-500"
                       }`}
                     >
                       {user
@@ -1089,9 +995,7 @@ export default function Home() {
                             : "bg-purple-600 hover:bg-purple-700"
                         }`}
                       >
-                        {copied
-                          ? "✓ Link Copied!"
-                          : "🔗 Copy Referral Link"}
+                        {copied ? "✓ Link Copied!" : "🔗 Copy Referral Link"}
                       </button>
                     ) : (
                       <button
@@ -1120,33 +1024,24 @@ export default function Home() {
                         : "border-purple-100 bg-white text-slate-600"
                     }`}
                   >
-                    <span className="font-bold">
-                      Your link:
-                    </span>{" "}
-                    <span className="break-all">
-                      {referralLink}
-                    </span>
+                    <span className="font-bold">Your link:</span>{" "}
+                    <span className="break-all">{referralLink}</span>
                   </div>
                 )}
               </div>
 
               {/* COUNT */}
-
               <div className="grid gap-6 p-7 md:grid-cols-3 md:p-10">
                 <div
                   className={`rounded-2xl p-6 text-center ${
-                    isHalloween
-                      ? "bg-purple-950/40"
-                      : "bg-purple-50"
+                    isHalloween ? "bg-purple-950/40" : "bg-purple-50"
                   }`}
                 >
                   <div className="text-4xl">👥</div>
 
                   <div
                     className={`mt-3 text-4xl font-black ${
-                      isHalloween
-                        ? "text-white"
-                        : "text-purple-700"
+                      isHalloween ? "text-white" : "text-purple-700"
                     }`}
                   >
                     {user ? referrals : "—"}
@@ -1159,18 +1054,14 @@ export default function Home() {
 
                 <div
                   className={`rounded-2xl p-6 text-center ${
-                    isHalloween
-                      ? "bg-orange-950/30"
-                      : "bg-orange-50"
+                    isHalloween ? "bg-orange-950/30" : "bg-orange-50"
                   }`}
                 >
                   <div className="text-4xl">🎁</div>
 
                   <div
                     className={`mt-3 text-4xl font-black ${
-                      isHalloween
-                        ? "text-orange-400"
-                        : "text-orange-600"
+                      isHalloween ? "text-orange-400" : "text-orange-600"
                     }`}
                   >
                     {user ? claimedRewards.length : "—"}
@@ -1183,18 +1074,14 @@ export default function Home() {
 
                 <div
                   className={`rounded-2xl p-6 text-center ${
-                    isHalloween
-                      ? "bg-emerald-950/30"
-                      : "bg-emerald-50"
+                    isHalloween ? "bg-emerald-950/30" : "bg-emerald-50"
                   }`}
                 >
                   <div className="text-4xl">🏆</div>
 
                   <div
                     className={`mt-3 text-2xl font-black ${
-                      isHalloween
-                        ? "text-emerald-400"
-                        : "text-emerald-700"
+                      isHalloween ? "text-emerald-400" : "text-emerald-700"
                     }`}
                   >
                     {!user
@@ -1211,14 +1098,11 @@ export default function Home() {
               </div>
 
               {/* PROGRESS */}
-
               <div className="px-7 pb-10 md:px-10">
                 <div className="flex items-center justify-between text-sm font-bold">
                   <span
                     className={
-                      isHalloween
-                        ? "text-purple-300"
-                        : "text-slate-500"
+                      isHalloween ? "text-purple-300" : "text-slate-500"
                     }
                   >
                     Referral progress
@@ -1226,9 +1110,7 @@ export default function Home() {
 
                   <span
                     className={
-                      isHalloween
-                        ? "text-orange-400"
-                        : "text-purple-600"
+                      isHalloween ? "text-orange-400" : "text-purple-600"
                     }
                   >
                     {!user
@@ -1241,20 +1123,14 @@ export default function Home() {
 
                 <div
                   className={`mt-3 h-4 overflow-hidden rounded-full ${
-                    isHalloween
-                      ? "bg-purple-950"
-                      : "bg-slate-100"
+                    isHalloween ? "bg-purple-950" : "bg-slate-100"
                   }`}
                 >
                   <div
                     className="h-full rounded-full bg-gradient-to-r from-pink-500 via-purple-600 to-orange-500 transition-all duration-700"
                     style={{
                       width: `${
-                        user
-                          ? referrals >= 25
-                            ? 100
-                            : progress
-                          : 0
+                        user ? (referrals >= 25 ? 100 : progress) : 0
                       }%`,
                     }}
                   />
@@ -1263,17 +1139,11 @@ export default function Home() {
             </div>
 
             {/* REWARD CARDS */}
-
             <div className="mt-8 grid gap-5 md:grid-cols-3">
               {referralRewards.map((reward) => {
-                const unlocked =
-                  Boolean(user) &&
-                  referrals >= reward.referrals;
+                const unlocked = Boolean(user) && referrals >= reward.referrals;
 
-                const claimed =
-                  claimedRewards.includes(
-                    reward.referrals
-                  );
+                const claimed = claimedRewards.includes(reward.referrals);
 
                 return (
                   <div
@@ -1289,9 +1159,7 @@ export default function Home() {
                     }`}
                   >
                     <div className="flex items-start justify-between">
-                      <div className="text-4xl">
-                        {reward.emoji}
-                      </div>
+                      <div className="text-4xl">{reward.emoji}</div>
 
                       <div
                         className={`rounded-full px-3 py-1 text-xs font-black ${
@@ -1312,9 +1180,7 @@ export default function Home() {
 
                     <div
                       className={`mt-5 text-sm font-black uppercase tracking-widest ${
-                        isHalloween
-                          ? "text-purple-400"
-                          : "text-slate-400"
+                        isHalloween ? "text-purple-400" : "text-slate-400"
                       }`}
                     >
                       {reward.referrals} referrals
@@ -1329,12 +1195,8 @@ export default function Home() {
                     </h3>
 
                     <button
-                      disabled={
-                        Boolean(unlocked && claimed)
-                      }
-                      onClick={() =>
-                        claimReward(reward.referrals)
-                      }
+                      disabled={Boolean(unlocked && claimed)}
+                      onClick={() => claimReward(reward.referrals)}
                       className={`mt-6 w-full rounded-xl py-3 font-black transition ${
                         claimed
                           ? "cursor-default bg-emerald-100 text-emerald-700"
@@ -1352,9 +1214,7 @@ export default function Home() {
                         : unlocked
                         ? "🎁 Claim Reward"
                         : user
-                        ? `🔒 Need ${
-                            reward.referrals - referrals
-                          } more referrals`
+                        ? `🔒 Need ${reward.referrals - referrals} more referrals`
                         : "🔐 Login to Unlock"}
                     </button>
                   </div>
@@ -1365,7 +1225,6 @@ export default function Home() {
         </section>
 
         {/* FINDER */}
-
         <section
           id="finder"
           className={`scroll-mt-20 px-5 pb-24 ${
@@ -1388,9 +1247,7 @@ export default function Home() {
             >
               <p
                 className={`text-sm font-bold uppercase tracking-widest ${
-                  isHalloween
-                    ? "text-orange-400"
-                    : "text-pink-600"
+                  isHalloween ? "text-orange-400" : "text-pink-600"
                 }`}
               >
                 {isHalloween
@@ -1410,9 +1267,7 @@ export default function Home() {
 
               <p
                 className={`mt-3 ${
-                  isHalloween
-                    ? "text-purple-300"
-                    : "text-slate-500"
+                  isHalloween ? "text-purple-300" : "text-slate-500"
                 }`}
               >
                 Choose a person, occasion and budget.
@@ -1465,9 +1320,7 @@ export default function Home() {
                           : "border-slate-100 bg-slate-50 hover:border-pink-200 hover:bg-white"
                       }`}
                     >
-                      <div className="text-4xl">
-                        {item.emoji}
-                      </div>
+                      <div className="text-4xl">{item.emoji}</div>
 
                       <div
                         className={`mt-3 font-black ${
@@ -1479,9 +1332,7 @@ export default function Home() {
 
                       <div
                         className={`mt-1 hidden text-xs md:block ${
-                          isHalloween
-                            ? "text-purple-300"
-                            : "text-slate-500"
+                          isHalloween ? "text-purple-300" : "text-slate-500"
                         }`}
                       >
                         {item.desc}
@@ -1509,7 +1360,7 @@ export default function Home() {
                         isHalloween ? "text-white" : ""
                       }`}
                     >
-                      What&apos;s the occasion?
+                      What's the occasion?
                     </h2>
 
                     <p
@@ -1519,7 +1370,7 @@ export default function Home() {
                           : "mt-1 text-sm text-slate-500"
                       }
                     >
-                      Pick the moment you&apos;re celebrating.
+                      Pick the moment you're celebrating.
                     </p>
                   </div>
                 </div>
@@ -1542,9 +1393,7 @@ export default function Home() {
                           : "border-slate-100 bg-slate-50 hover:border-purple-200 hover:bg-white"
                       }`}
                     >
-                      <div className="text-4xl">
-                        {item.emoji}
-                      </div>
+                      <div className="text-4xl">{item.emoji}</div>
 
                       <div
                         className={`mt-3 font-black ${
@@ -1576,7 +1425,7 @@ export default function Home() {
                         isHalloween ? "text-white" : ""
                       }`}
                     >
-                      What&apos;s your budget?
+                      What's your budget?
                     </h2>
 
                     <p
@@ -1617,9 +1466,7 @@ export default function Home() {
 
               <button
                 onClick={findGifts}
-                disabled={
-                  !recipient || !occasion || !budget
-                }
+                disabled={!recipient || !occasion || !budget}
                 className={`w-full rounded-2xl py-5 text-base font-black text-white shadow-xl transition md:text-lg ${
                   recipient && occasion && budget
                     ? isHalloween
@@ -1633,18 +1480,13 @@ export default function Home() {
                   : "✨ Find My Perfect Gifts"}
               </button>
 
-              {(!recipient ||
-                !occasion ||
-                !budget) && (
+              {(!recipient || !occasion || !budget) && (
                 <p
                   className={`mt-4 text-center text-xs ${
-                    isHalloween
-                      ? "text-purple-400"
-                      : "text-slate-400"
+                    isHalloween ? "text-purple-400" : "text-slate-400"
                   }`}
                 >
-                  Select all 3 options above to see your
-                  recommendations.
+                  Select all 3 options above to see your recommendations.
                 </p>
               )}
             </div>
@@ -1652,7 +1494,6 @@ export default function Home() {
         </section>
 
         {/* RESULTS */}
-
         {showResults && (
           <section
             id="results"
@@ -1662,15 +1503,11 @@ export default function Home() {
           >
             <div className="mx-auto max-w-7xl">
               <div className="mx-auto mb-14 max-w-3xl text-center">
-                <div className="text-5xl">
-                  {isHalloween ? "🎃" : "🎁"}
-                </div>
+                <div className="text-5xl">{isHalloween ? "🎃" : "🎁"}</div>
 
                 <p
                   className={`mt-5 text-sm font-black uppercase tracking-widest ${
-                    isHalloween
-                      ? "text-orange-400"
-                      : "text-pink-600"
+                    isHalloween ? "text-orange-400" : "text-pink-600"
                   }`}
                 >
                   Your matches
@@ -1686,17 +1523,18 @@ export default function Home() {
 
                 <p
                   className={`mt-5 ${
-                    isHalloween
-                      ? "text-purple-300"
-                      : "text-slate-500"
+                    isHalloween ? "text-purple-300" : "text-slate-500"
                   }`}
                 >
-                  For <strong>{recipient}</strong> ·{" "}
-                  {occasion} · {budget}
+                  For <strong>{recipient}</strong> · {occasion} · {budget}
                 </p>
               </div>
 
-              {recommendations.length > 0 ? (
+              {productsLoading ? (
+                <div className="text-center py-10 font-bold text-slate-400">
+                  Loading gifts from Supabase...
+                </div>
+              ) : recommendations.length > 0 ? (
                 <div className="grid gap-7 sm:grid-cols-2 lg:grid-cols-3">
                   {recommendations.map((gift) => (
                     <div
@@ -1714,16 +1552,15 @@ export default function Home() {
                           className="h-full w-full object-cover transition duration-700 group-hover:scale-110"
                         />
 
+                        {/* STEP 6 — gift.halloween වෙනුවට isHalloween භාවිතය */}
                         <div
                           className={`absolute left-4 top-4 rounded-full px-3 py-1.5 text-xs font-black ${
-                             isHalloween
+                            isHalloween
                               ? "bg-orange-500 text-white"
                               : "bg-white text-pink-600"
                           }`}
                         >
-                          { isHalloween
-                            ? "🎃 Spooky Pick"
-                            : "⭐ Great Match"}
+                          {isHalloween ? "🎃 Spooky Pick" : "⭐ Great Match"}
                         </div>
 
                         <div className="absolute bottom-4 right-4 rounded-xl bg-slate-950/90 px-3 py-2 text-lg font-black text-white">
@@ -1732,10 +1569,8 @@ export default function Home() {
                       </div>
 
                       <div className="p-6">
-                       
-
                         <h3
-                          className={`mt-4 text-xl font-black ${
+                          className={`text-xl font-black ${
                             isHalloween ? "text-white" : ""
                           }`}
                         >
@@ -1744,26 +1579,23 @@ export default function Home() {
 
                         <p
                           className={`mt-2 min-h-[72px] text-sm leading-6 ${
-                            isHalloween
-                              ? "text-purple-300"
-                              : "text-slate-500"
+                            isHalloween ? "text-purple-300" : "text-slate-500"
                           }`}
                         >
                           {gift.description}
                         </p>
 
+                        {/* STEP 5 — Direct Affiliate URL redirection */}
                         <button
-  onClick={() => {
-    window.open(gift.url, "_blank");
-  }}
-  className={`mt-5 w-full rounded-xl py-3.5 font-black text-white transition ${
-    isHalloween
-      ? "bg-orange-600 hover:bg-orange-500"
-      : "bg-slate-900 hover:bg-pink-600"
-  }`}
->
-  🛒 View Gift →
-</button>
+                          onClick={() => window.open(gift.url, "_blank")}
+                          className={`mt-5 w-full rounded-xl py-3.5 font-black text-white transition ${
+                            isHalloween
+                              ? "bg-orange-600 hover:bg-orange-500"
+                              : "bg-slate-900 hover:bg-pink-600"
+                          }`}
+                        >
+                          🛒 View Gift →
+                        </button>
                       </div>
                     </div>
                   ))}
@@ -1786,7 +1618,6 @@ export default function Home() {
         )}
 
         {/* HOW IT WORKS */}
-
         <section
           id="how"
           className={`scroll-mt-20 px-5 py-24 ${
@@ -1797,9 +1628,7 @@ export default function Home() {
             <div className="mx-auto max-w-2xl text-center">
               <p
                 className={`text-sm font-black uppercase tracking-widest ${
-                  isHalloween
-                    ? "text-orange-400"
-                    : "text-pink-600"
+                  isHalloween ? "text-orange-400" : "text-pink-600"
                 }`}
               >
                 Simple & easy
@@ -1840,9 +1669,7 @@ export default function Home() {
                       : "border-slate-200 bg-white"
                   }`}
                 >
-                  <div className="text-4xl">
-                    {item.emoji}
-                  </div>
+                  <div className="text-4xl">{item.emoji}</div>
 
                   <h3
                     className={`mt-6 text-2xl font-black ${
@@ -1854,9 +1681,7 @@ export default function Home() {
 
                   <p
                     className={`mt-3 leading-7 ${
-                      isHalloween
-                        ? "text-purple-300"
-                        : "text-slate-500"
+                      isHalloween ? "text-purple-300" : "text-slate-500"
                     }`}
                   >
                     {item.text}
@@ -1868,7 +1693,6 @@ export default function Home() {
         </section>
 
         {/* FOOTER */}
-
         <footer
           className={`border-t px-6 py-14 ${
             isHalloween
@@ -1883,9 +1707,7 @@ export default function Home() {
                   {isHalloween ? "🎃" : "🎁"} Gift
                   <span
                     className={
-                      isHalloween
-                        ? "text-orange-500"
-                        : "text-pink-500"
+                      isHalloween ? "text-orange-500" : "text-pink-500"
                     }
                   >
                     Match
@@ -1893,21 +1715,16 @@ export default function Home() {
                 </div>
 
                 <p className="mt-3 max-w-sm text-sm leading-6 text-slate-400">
-                  Helping you find thoughtful gifts and exciting
-                  mystery surprises.
+                  Helping you find thoughtful gifts and exciting mystery
+                  surprises.
                 </p>
               </div>
 
               <div className="flex gap-10 text-sm text-slate-400">
                 <div>
-                  <div className="mb-3 font-bold text-white">
-                    Explore
-                  </div>
+                  <div className="mb-3 font-bold text-white">Explore</div>
 
-                  <a
-                    href="#finder"
-                    className="block hover:text-pink-400"
-                  >
+                  <a href="#finder" className="block hover:text-pink-400">
                     Gift Finder
                   </a>
 
@@ -1937,3 +1754,5 @@ export default function Home() {
     </>
   );
 }
+
+
