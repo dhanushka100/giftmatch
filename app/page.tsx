@@ -9,6 +9,8 @@ type Gift = {
   price: number;
   description: string;
   affiliate_url: string;
+  interests?: string[]; // NEW — e.g. ["cooking","gaming"]
+  age_range?: string; // NEW — "kids" | "teen" | "18-25" | "26-40" | "41-60" | "60+" | "all"
 };
 
 type MysteryGift = {
@@ -43,6 +45,32 @@ const budgets = [
   { label: "$250+", min: 250, max: 1000 },
 ];
 
+// NEW — Interests the user can pick for the recipient (multi-select).
+// Used to score / rank gift matches. Maps to a `interests text[]` column
+// on the `products` table in Supabase (see migration notes at bottom).
+const interestOptions = [
+  { name: "Cooking", emoji: "🍳" },
+  { name: "Gaming", emoji: "🎮" },
+  { name: "Fitness", emoji: "🏋️" },
+  { name: "Tech", emoji: "💻" },
+  { name: "Fashion", emoji: "👗" },
+  { name: "Books", emoji: "📚" },
+  { name: "Travel", emoji: "✈️" },
+  { name: "Music", emoji: "🎵" },
+  { name: "Art & Craft", emoji: "🎨" },
+  { name: "Outdoors", emoji: "🏕️" },
+];
+
+// NEW — Age range the gift is for. Maps to an `age_range text` column
+// on the `products` table (value "all" means it fits every age group).
+const ageRanges = [
+  { label: "Kids (0-12)", value: "kids", emoji: "🧒" },
+  { label: "Teen (13-17)", value: "teen", emoji: "🧑" },
+  { label: "18-25", value: "18-25", emoji: "🎓" },
+  { label: "26-40", value: "26-40", emoji: "💼" },
+  { label: "41-60", value: "41-60", emoji: "🧑‍💼" },
+  { label: "60+", value: "60+", emoji: "🌿" },
+];
 
 const mysteryGifts: MysteryGift[] = [
   {
@@ -87,7 +115,6 @@ const referralRewards = [
 ];
 
 export default function Home() {
-  
   const [gifts, setGifts] = useState<Gift[]>([]);
   const [productsLoading, setProductsLoading] = useState(true);
 
@@ -95,9 +122,9 @@ export default function Home() {
     async function loadGifts() {
       const { data, error } = await supabase
         .from("products")
-        .select("name, description, price, image_url, affiliate_url");
-        console.log("PRODUCTS FROM SUPABASE:", data);
-        console.log("SUPABASE ERROR:", error);
+        .select(
+          "name, description, price, image_url, affiliate_url, interests, age_range"
+        );
 
       if (error) {
         console.error("Error loading products:", error);
@@ -115,6 +142,8 @@ export default function Home() {
   const [recipient, setRecipient] = useState("");
   const [occasion, setOccasion] = useState("");
   const [budget, setBudget] = useState("");
+  const [selectedInterests, setSelectedInterests] = useState<string[]>([]); // NEW
+  const [ageRange, setAgeRange] = useState(""); // NEW
   const [showResults, setShowResults] = useState(false);
 
   const [mysteryRecipient, setMysteryRecipient] = useState("Friend");
@@ -135,6 +164,15 @@ export default function Home() {
 
   const selectedBudget = budgets.find((b) => b.label === budget);
   const isHalloween = occasion === "Halloween";
+
+  function toggleInterest(name: string) {
+    setSelectedInterests((current) =>
+      current.includes(name)
+        ? current.filter((i) => i !== name)
+        : [...current, name]
+    );
+    setShowResults(false);
+  }
 
   /*
    * REAL REFERRAL / AUTH SYSTEM
@@ -266,19 +304,52 @@ export default function Home() {
     };
   }, []);
 
-  // STEP 4 — Budget filter මත පමණක් පදනම් වූ Recommendations logic එක
+  // UPDATED — Recommendations now score by interests + age range instead of
+  // filtering by budget alone. Budget stays a hard filter (must fit the
+  // range); interests and age range are soft signals that bump relevance,
+  // so the finder still works fine even if a product has no tags yet.
   const recommendations = useMemo(() => {
     if (!recipient || !occasion || !selectedBudget) {
       return [];
     }
 
-    return gifts.filter((gift) => {
-      return (
-        gift.price >= selectedBudget.min &&
-        gift.price <= selectedBudget.max
+    const withinBudget = gifts.filter(
+      (gift) => gift.price >= selectedBudget.min && gift.price <= selectedBudget.max
+    );
+
+    const scored = withinBudget.map((gift) => {
+      let score = 0;
+
+      const giftInterests = gift.interests || [];
+      const matchedInterests = selectedInterests.filter((i) =>
+        giftInterests.some((gi) => gi.toLowerCase() === i.toLowerCase())
       );
+
+      // Each matched interest adds weight; a gift matching more of the
+      // recipient's interests ranks higher.
+      score += matchedInterests.length * 3;
+
+      const giftAge = (gift.age_range || "all").toLowerCase();
+
+      if (ageRange && (giftAge === ageRange.toLowerCase() || giftAge === "all")) {
+        score += 2;
+      }
+
+      return { gift, score };
     });
-  }, [gifts, recipient, occasion, selectedBudget]);
+
+    // If no interests/age selected at all, preserve original budget-only
+    // ordering (cheapest-relevant first) instead of an arbitrary score sort.
+    const hasPreferences = selectedInterests.length > 0 || Boolean(ageRange);
+
+    if (!hasPreferences) {
+      return scored.map((s) => s.gift);
+    }
+
+    return scored
+      .sort((a, b) => b.score - a.score || a.gift.price - b.gift.price)
+      .map((s) => s.gift);
+  }, [gifts, recipient, occasion, selectedBudget, selectedInterests, ageRange]);
 
   const mysteryRecommendations = useMemo(() => {
     return mysteryGifts.filter((gift) =>
@@ -1271,7 +1342,8 @@ export default function Home() {
                   isHalloween ? "text-purple-300" : "text-slate-500"
                 }`}
               >
-                Choose a person, occasion and budget.
+                Choose a person, occasion and budget — and tell us their
+                interests for even better matches.
               </p>
             </div>
 
@@ -1414,10 +1486,127 @@ export default function Home() {
                 </div>
               </div>
 
+              {/* NEW STEP — Interests (optional multi-select) */}
+              <div className="mb-12">
+                <div className="mb-6 flex items-start gap-4">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-pink-500/10 font-black text-pink-400">
+                    3
+                  </div>
+
+                  <div>
+                    <h2
+                      className={`text-xl font-black md:text-2xl ${
+                        isHalloween ? "text-white" : ""
+                      }`}
+                    >
+                      What are they into?{" "}
+                      <span className="text-sm font-bold text-slate-400">
+                        (optional)
+                      </span>
+                    </h2>
+
+                    <p
+                      className={
+                        isHalloween
+                          ? "mt-1 text-sm text-purple-300"
+                          : "mt-1 text-sm text-slate-500"
+                      }
+                    >
+                      Pick as many interests as apply — this sharpens your
+                      matches.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-3">
+                  {interestOptions.map((item) => {
+                    const active = selectedInterests.includes(item.name);
+
+                    return (
+                      <button
+                        key={item.name}
+                        onClick={() => toggleInterest(item.name)}
+                        className={`flex items-center gap-2 rounded-full border-2 px-4 py-2.5 text-sm font-black transition ${
+                          active
+                            ? isHalloween
+                              ? "border-pink-500 bg-pink-950/30 text-pink-300"
+                              : "border-pink-500 bg-pink-50 text-pink-700"
+                            : isHalloween
+                            ? "border-purple-900/50 bg-[#171020] text-white hover:border-pink-500/50"
+                            : "border-slate-200 bg-slate-50 hover:border-pink-200 hover:bg-white"
+                        }`}
+                      >
+                        <span>{item.emoji}</span>
+                        <span>{item.name}</span>
+                        {active && <span className="text-xs">✓</span>}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* NEW STEP — Age range (optional single-select) */}
+              <div className="mb-12">
+                <div className="mb-6 flex items-start gap-4">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-500/10 font-black text-indigo-400">
+                    4
+                  </div>
+
+                  <div>
+                    <h2
+                      className={`text-xl font-black md:text-2xl ${
+                        isHalloween ? "text-white" : ""
+                      }`}
+                    >
+                      What's their age range?{" "}
+                      <span className="text-sm font-bold text-slate-400">
+                        (optional)
+                      </span>
+                    </h2>
+
+                    <p
+                      className={
+                        isHalloween
+                          ? "mt-1 text-sm text-purple-300"
+                          : "mt-1 text-sm text-slate-500"
+                      }
+                    >
+                      Helps us surface age-appropriate gifts.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
+                  {ageRanges.map((item) => (
+                    <button
+                      key={item.value}
+                      onClick={() => {
+                        setAgeRange((current) =>
+                          current === item.value ? "" : item.value
+                        );
+                        setShowResults(false);
+                      }}
+                      className={`rounded-2xl border-2 p-4 text-center font-black transition ${
+                        ageRange === item.value
+                          ? isHalloween
+                            ? "border-indigo-400 bg-indigo-950/30 text-indigo-300"
+                            : "border-indigo-500 bg-indigo-50 text-indigo-700"
+                          : isHalloween
+                          ? "border-purple-900/50 bg-[#171020] text-white hover:border-indigo-400/50"
+                          : "border-slate-100 bg-slate-50 hover:border-indigo-200 hover:bg-white"
+                      }`}
+                    >
+                      <div className="text-2xl">{item.emoji}</div>
+                      <div className="mt-1 text-xs">{item.label}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               <div className="mb-10">
                 <div className="mb-6 flex items-start gap-4">
                   <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 font-black text-emerald-400">
-                    3
+                    5
                   </div>
 
                   <div>
@@ -1487,7 +1676,9 @@ export default function Home() {
                     isHalloween ? "text-purple-400" : "text-slate-400"
                   }`}
                 >
-                  Select all 3 options above to see your recommendations.
+                  Select recipient, occasion and budget to see your
+                  recommendations. Interests and age range are optional but
+                  make matches sharper.
                 </p>
               )}
             </div>
@@ -1528,6 +1719,12 @@ export default function Home() {
                   }`}
                 >
                   For <strong>{recipient}</strong> · {occasion} · {budget}
+                  {selectedInterests.length > 0 &&
+                    ` · ${selectedInterests.join(", ")}`}
+                  {ageRange &&
+                    ` · ${
+                      ageRanges.find((a) => a.value === ageRange)?.label
+                    }`}
                 </p>
               </div>
 
@@ -1537,69 +1734,99 @@ export default function Home() {
                 </div>
               ) : recommendations.length > 0 ? (
                 <div className="grid gap-7 sm:grid-cols-2 lg:grid-cols-3">
-                  {recommendations.map((gift) => (
-                    <div
-                      key={gift.name}
-                      className={`group overflow-hidden rounded-3xl border shadow-lg transition hover:-translate-y-2 hover:shadow-2xl ${
-                        isHalloween
-                          ? "border-purple-900/50 bg-[#15101d]"
-                          : "border-slate-200 bg-white"
-                      }`}
-                    >
-                      <div className="relative h-64 overflow-hidden bg-slate-100">
-                        <img
-                          src={gift.image_url}
-                          alt={gift.name}
-                          className="h-full w-full object-cover transition duration-700 group-hover:scale-110"
-                        />
+                  {recommendations.map((gift) => {
+                    const giftInterests = gift.interests || [];
+                    const matchedInterests = selectedInterests.filter((i) =>
+                      giftInterests.some(
+                        (gi) => gi.toLowerCase() === i.toLowerCase()
+                      )
+                    );
 
-                        {/* STEP 6 — gift.halloween වෙනුවට isHalloween භාවිතය */}
-                        <div
-                          className={`absolute left-4 top-4 rounded-full px-3 py-1.5 text-xs font-black ${
-                            isHalloween
-                              ? "bg-orange-500 text-white"
-                              : "bg-white text-pink-600"
-                          }`}
-                        >
-                          {isHalloween ? "🎃 Spooky Pick" : "⭐ Great Match"}
+                    return (
+                      <div
+                        key={gift.name}
+                        className={`group overflow-hidden rounded-3xl border shadow-lg transition hover:-translate-y-2 hover:shadow-2xl ${
+                          isHalloween
+                            ? "border-purple-900/50 bg-[#15101d]"
+                            : "border-slate-200 bg-white"
+                        }`}
+                      >
+                        <div className="relative h-64 overflow-hidden bg-slate-100">
+                          <img
+                            src={gift.image_url}
+                            alt={gift.name}
+                            className="h-full w-full object-cover transition duration-700 group-hover:scale-110"
+                          />
+
+                          <div
+                            className={`absolute left-4 top-4 rounded-full px-3 py-1.5 text-xs font-black ${
+                              isHalloween
+                                ? "bg-orange-500 text-white"
+                                : "bg-white text-pink-600"
+                            }`}
+                          >
+                            {isHalloween
+                              ? "🎃 Spooky Pick"
+                              : matchedInterests.length > 0
+                              ? "🎯 Perfect Match"
+                              : "⭐ Great Match"}
+                          </div>
+
+                          <div className="absolute bottom-4 right-4 rounded-xl bg-slate-950/90 px-3 py-2 text-lg font-black text-white">
+                            ${gift.price.toFixed(2)}
+                          </div>
                         </div>
 
-                        <div className="absolute bottom-4 right-4 rounded-xl bg-slate-950/90 px-3 py-2 text-lg font-black text-white">
-                          ${gift.price.toFixed(2)}
+                        <div className="p-6">
+                          <h3
+                            className={`text-xl font-black ${
+                              isHalloween ? "text-white" : ""
+                            }`}
+                          >
+                            {gift.name}
+                          </h3>
+
+                          <p
+                            className={`mt-2 min-h-[72px] text-sm leading-6 ${
+                              isHalloween ? "text-purple-300" : "text-slate-500"
+                            }`}
+                          >
+                            {gift.description}
+                          </p>
+
+                          {matchedInterests.length > 0 && (
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              {matchedInterests.map((interest) => (
+                                <span
+                                  key={interest}
+                                  className={`rounded-full px-3 py-1 text-xs font-black ${
+                                    isHalloween
+                                      ? "bg-pink-950/50 text-pink-300"
+                                      : "bg-pink-50 text-pink-600"
+                                  }`}
+                                >
+                                  {interest}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+
+                          <button
+                            onClick={() =>
+                              window.open(gift.affiliate_url, "_blank")
+                            }
+                            className={`mt-5 w-full rounded-xl py-3.5 font-black text-white transition ${
+                              isHalloween
+                                ? "bg-orange-600 hover:bg-orange-500"
+                                : "bg-slate-900 hover:bg-pink-600"
+                            }`}
+                          >
+                            🛒 View Gift →
+                          </button>
                         </div>
                       </div>
-
-                      <div className="p-6">
-                        <h3
-                          className={`text-xl font-black ${
-                            isHalloween ? "text-white" : ""
-                          }`}
-                        >
-                          {gift.name}
-                        </h3>
-
-                        <p
-                          className={`mt-2 min-h-[72px] text-sm leading-6 ${
-                            isHalloween ? "text-purple-300" : "text-slate-500"
-                          }`}
-                        >
-                          {gift.description}
-                        </p>
-
-                        {/* STEP 5 — Direct Affiliate URL redirection */}
-                        <button
-                          onClick={() => window.open(gift.affiliate_url, "_blank")}
-                          className={`mt-5 w-full rounded-xl py-3.5 font-black text-white transition ${
-                            isHalloween
-                              ? "bg-orange-600 hover:bg-orange-500"
-                              : "bg-slate-900 hover:bg-pink-600"
-                          }`}
-                        >
-                          🛒 View Gift →
-                        </button>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               ) : (
                 <div className="mx-auto max-w-xl rounded-3xl border p-10 text-center">
@@ -1610,7 +1837,7 @@ export default function Home() {
                   </h3>
 
                   <p className="mt-3 text-slate-500">
-                    Try another budget or occasion.
+                    Try another budget, occasion, or fewer interests.
                   </p>
                 </div>
               )}
