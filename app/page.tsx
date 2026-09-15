@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
@@ -6,10 +5,10 @@ import { supabase } from "@/lib/supabase";
 
 type Gift = {
   name: string;
-  image: string;
+  image_url: string;
   price: number;
   description: string;
-  url: string;
+  affiliate_url: string;
 };
 
 type MysteryGift = {
@@ -96,7 +95,7 @@ export default function Home() {
     async function loadGifts() {
       const { data, error } = await supabase
         .from("products")
-        .select("name, description, price, image, url");
+        .select("name, description, price, image_url, affiliate_url");
         console.log("PRODUCTS FROM SUPABASE:", data);
         console.log("SUPABASE ERROR:", error);
 
@@ -1549,7 +1548,7 @@ export default function Home() {
                     >
                       <div className="relative h-64 overflow-hidden bg-slate-100">
                         <img
-                          src={gift.image}
+                          src={gift.image_url}
                           alt={gift.name}
                           className="h-full w-full object-cover transition duration-700 group-hover:scale-110"
                         />
@@ -1589,7 +1588,7 @@ export default function Home() {
 
                         {/* STEP 5 — Direct Affiliate URL redirection */}
                         <button
-                          onClick={() => window.open(gift.url, "_blank")}
+                          onClick={() => window.open(gift.affiliate_url, "_blank")}
                           className={`mt-5 w-full rounded-xl py-3.5 font-black text-white transition ${
                             isHalloween
                               ? "bg-orange-600 hover:bg-orange-500"
@@ -1756,5 +1755,3 @@ export default function Home() {
     </>
   );
 }
-
-
