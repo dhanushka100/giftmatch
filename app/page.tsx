@@ -9,8 +9,8 @@ type Gift = {
   price: number;
   description: string;
   affiliate_url: string;
-  interests?: string[]; // NEW — e.g. ["cooking","gaming"]
-  age_range?: string; // NEW — "kids" | "teen" | "18-25" | "26-40" | "41-60" | "60+" | "all"
+  interests?: string[];
+  age_range?: string;
 };
 
 type MysteryGift = {
@@ -45,9 +45,6 @@ const budgets = [
   { label: "$250+", min: 250, max: 1000 },
 ];
 
-// NEW — Interests the user can pick for the recipient (multi-select).
-// Used to score / rank gift matches. Maps to a `interests text[]` column
-// on the `products` table in Supabase (see migration notes at bottom).
 const interestOptions = [
   { name: "Cooking", emoji: "🍳" },
   { name: "Gaming", emoji: "🎮" },
@@ -61,8 +58,6 @@ const interestOptions = [
   { name: "Outdoors", emoji: "🏕️" },
 ];
 
-// NEW — Age range the gift is for. Maps to an `age_range text` column
-// on the `products` table (value "all" means it fits every age group).
 const ageRanges = [
   { label: "Kids (0-12)", value: "kids", emoji: "🧒" },
   { label: "Teen (13-17)", value: "teen", emoji: "🧑" },
@@ -71,6 +66,10 @@ const ageRanges = [
   { label: "41-60", value: "41-60", emoji: "🧑‍💼" },
   { label: "60+", value: "60+", emoji: "🌿" },
 ];
+
+// NEW — recipients that are inherently adults; kids/teen age ranges never
+// apply to them so we hide those two options when one of these is picked.
+const ADULT_ONLY_RECIPIENTS = ["Mom", "Dad", "Partner"];
 
 const mysteryGifts: MysteryGift[] = [
   {
@@ -97,21 +96,9 @@ const mysteryGifts: MysteryGift[] = [
 ];
 
 const referralRewards = [
-  {
-    referrals: 5,
-    reward: "$5 Mystery Gift",
-    emoji: "🎁",
-  },
-  {
-    referrals: 10,
-    reward: "$10 Mystery Gift",
-    emoji: "🎀",
-  },
-  {
-    referrals: 25,
-    reward: "$25 Premium Mystery Gift",
-    emoji: "👑",
-  },
+  { referrals: 5, reward: "$5 Mystery Gift", emoji: "🎁" },
+  { referrals: 10, reward: "$10 Mystery Gift", emoji: "🎀" },
+  { referrals: 25, reward: "$25 Premium Mystery Gift", emoji: "👑" },
 ];
 
 export default function Home() {
@@ -142,8 +129,8 @@ export default function Home() {
   const [recipient, setRecipient] = useState("");
   const [occasion, setOccasion] = useState("");
   const [budget, setBudget] = useState("");
-  const [selectedInterests, setSelectedInterests] = useState<string[]>([]); // NEW
-  const [ageRange, setAgeRange] = useState(""); // NEW
+  const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
+  const [ageRange, setAgeRange] = useState("");
   const [showResults, setShowResults] = useState(false);
 
   const [mysteryRecipient, setMysteryRecipient] = useState("Friend");
@@ -155,7 +142,9 @@ export default function Home() {
 
   const [user, setUser] = useState<any>(null);
   const [authOpen, setAuthOpen] = useState(false);
-  const [authMode, setAuthMode] = useState<"login" | "signup">("signup");
+  const [authMode, setAuthMode] = useState<"login" | "signup" | "forgot">(
+    "signup"
+  );
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [authLoading, setAuthLoading] = useState(false);
@@ -165,6 +154,20 @@ export default function Home() {
   const selectedBudget = budgets.find((b) => b.label === budget);
   const isHalloween = occasion === "Halloween";
 
+  // NEW — age ranges available for the currently selected recipient. Mom /
+  // Dad / Partner never need "Kids" or "Teen", so those two are dropped for
+  // them; every other recipient (Friend, Coworker, or nobody picked yet)
+  // still sees the full list.
+  const availableAgeRanges = useMemo(() => {
+    if (ADULT_ONLY_RECIPIENTS.includes(recipient)) {
+      return ageRanges.filter(
+        (item) => item.value !== "kids" && item.value !== "teen"
+      );
+    }
+
+    return ageRanges;
+  }, [recipient]);
+
   function toggleInterest(name: string) {
     setSelectedInterests((current) =>
       current.includes(name)
@@ -172,6 +175,22 @@ export default function Home() {
         : [...current, name]
     );
     setShowResults(false);
+  }
+
+  // NEW — when the recipient changes, drop a previously selected age range
+  // if it's no longer valid for that recipient (e.g. "Kids" was selected,
+  // then the user switches to "Partner").
+  function selectRecipient(name: string) {
+    setRecipient(name);
+    setShowResults(false);
+
+    const stillValid = ADULT_ONLY_RECIPIENTS.includes(name)
+      ? ageRange !== "kids" && ageRange !== "teen"
+      : true;
+
+    if (!stillValid) {
+      setAgeRange("");
+    }
   }
 
   /*
@@ -304,10 +323,6 @@ export default function Home() {
     };
   }, []);
 
-  // UPDATED — Recommendations now score by interests + age range instead of
-  // filtering by budget alone. Budget stays a hard filter (must fit the
-  // range); interests and age range are soft signals that bump relevance,
-  // so the finder still works fine even if a product has no tags yet.
   const recommendations = useMemo(() => {
     if (!recipient || !occasion || !selectedBudget) {
       return [];
@@ -325,8 +340,6 @@ export default function Home() {
         giftInterests.some((gi) => gi.toLowerCase() === i.toLowerCase())
       );
 
-      // Each matched interest adds weight; a gift matching more of the
-      // recipient's interests ranks higher.
       score += matchedInterests.length * 3;
 
       const giftAge = (gift.age_range || "all").toLowerCase();
@@ -338,8 +351,6 @@ export default function Home() {
       return { gift, score };
     });
 
-    // If no interests/age selected at all, preserve original budget-only
-    // ordering (cheapest-relevant first) instead of an arbitrary score sort.
     const hasPreferences = selectedInterests.length > 0 || Boolean(ageRange);
 
     if (!hasPreferences) {
@@ -455,6 +466,32 @@ export default function Home() {
     setAuthLoading(false);
   }
 
+  // NEW — sends a password-reset email via Supabase. The link Supabase
+  // sends takes the user to redirectTo with a recovery token in the URL;
+  // wire that route up to show a "set new password" form using
+  // supabase.auth.updateUser({ password }).
+  async function handleForgotPassword() {
+    if (!email) {
+      setAuthMessage("Enter your email address first.");
+      return;
+    }
+
+    setAuthLoading(true);
+    setAuthMessage("");
+
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    });
+
+    if (error) {
+      setAuthMessage(error.message);
+    } else {
+      setAuthMessage("Check your email for a password reset link.");
+    }
+
+    setAuthLoading(false);
+  }
+
   async function logout() {
     await supabase.auth.signOut();
 
@@ -501,11 +538,15 @@ export default function Home() {
               <h2 className="mt-4 text-3xl font-black text-slate-900">
                 {authMode === "signup"
                   ? "Create your account"
+                  : authMode === "forgot"
+                  ? "Reset your password"
                   : "Welcome back"}
               </h2>
 
               <p className="mt-2 text-sm text-slate-500">
-                {referralRequired
+                {authMode === "forgot"
+                  ? "Enter your email and we'll send you a reset link."
+                  : referralRequired
                   ? "Sign up to activate your referral reward."
                   : "Login to continue to GiftMatch."}
               </p>
@@ -520,13 +561,31 @@ export default function Home() {
                 className="w-full rounded-xl border border-slate-200 px-4 py-3 text-slate-900 outline-none focus:border-purple-500"
               />
 
-              <input
-                type="password"
-                placeholder="Password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full rounded-xl border border-slate-200 px-4 py-3 text-slate-900 outline-none focus:border-purple-500"
-              />
+              {/* NEW — password field is hidden in forgot-password mode */}
+              {authMode !== "forgot" && (
+                <input
+                  type="password"
+                  placeholder="Password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full rounded-xl border border-slate-200 px-4 py-3 text-slate-900 outline-none focus:border-purple-500"
+                />
+              )}
+
+              {/* NEW — "Forgot password?" link, only shown while logging in */}
+              {authMode === "login" && (
+                <div className="text-right">
+                  <button
+                    onClick={() => {
+                      setAuthMode("forgot");
+                      setAuthMessage("");
+                    }}
+                    className="text-sm font-bold text-purple-600 hover:text-purple-700"
+                  >
+                    Forgot password?
+                  </button>
+                </div>
+              )}
 
               {authMessage && (
                 <div className="rounded-xl bg-slate-50 p-3 text-sm text-slate-600">
@@ -535,7 +594,7 @@ export default function Home() {
               )}
 
               <button
-                onClick={handleAuth}
+                onClick={authMode === "forgot" ? handleForgotPassword : handleAuth}
                 disabled={authLoading}
                 className="w-full rounded-xl bg-gradient-to-r from-pink-600 to-purple-600 py-4 font-black text-white disabled:opacity-60"
               >
@@ -543,6 +602,8 @@ export default function Home() {
                   ? "Please wait..."
                   : authMode === "signup"
                   ? "Create Account"
+                  : authMode === "forgot"
+                  ? "Send Reset Link"
                   : "Login"}
               </button>
             </div>
@@ -559,6 +620,19 @@ export default function Home() {
                     className="font-black text-purple-600"
                   >
                     Login
+                  </button>
+                </>
+              ) : authMode === "forgot" ? (
+                <>
+                  Remembered it after all?{" "}
+                  <button
+                    onClick={() => {
+                      setAuthMode("login");
+                      setAuthMessage("");
+                    }}
+                    className="font-black text-purple-600"
+                  >
+                    Back to login
                   </button>
                 </>
               ) : (
@@ -1119,7 +1193,11 @@ export default function Home() {
                     {user ? referrals : "—"}
                   </div>
 
-                  <div className="mt-1 text-sm font-bold text-slate-500">
+                  <div
+                    className={`mt-1 text-sm font-bold ${
+                      isHalloween ? "text-purple-300" : "text-slate-500"
+                    }`}
+                  >
                     Referrals
                   </div>
                 </div>
@@ -1139,7 +1217,11 @@ export default function Home() {
                     {user ? claimedRewards.length : "—"}
                   </div>
 
-                  <div className="mt-1 text-sm font-bold text-slate-500">
+                  <div
+                    className={`mt-1 text-sm font-bold ${
+                      isHalloween ? "text-purple-300" : "text-slate-500"
+                    }`}
+                  >
                     Rewards Claimed
                   </div>
                 </div>
@@ -1163,7 +1245,11 @@ export default function Home() {
                       : `${nextReward.referrals - referrals} left`}
                   </div>
 
-                  <div className="mt-1 text-sm font-bold text-slate-500">
+                  <div
+                    className={`mt-1 text-sm font-bold ${
+                      isHalloween ? "text-purple-300" : "text-slate-500"
+                    }`}
+                  >
                     Until next reward
                   </div>
                 </div>
@@ -1379,10 +1465,7 @@ export default function Home() {
                   {recipients.map((item) => (
                     <button
                       key={item.name}
-                      onClick={() => {
-                        setRecipient(item.name);
-                        setShowResults(false);
-                      }}
+                      onClick={() => selectRecipient(item.name)}
                       className={`group rounded-2xl border-2 p-5 text-left transition ${
                         recipient === item.name
                           ? isHalloween
@@ -1486,7 +1569,7 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* NEW STEP — Interests (optional multi-select) */}
+              {/* Interests (optional multi-select) */}
               <div className="mb-12">
                 <div className="mb-6 flex items-start gap-4">
                   <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-pink-500/10 font-black text-pink-400">
@@ -1545,7 +1628,7 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* NEW STEP — Age range (optional single-select) */}
+              {/* Age range (optional single-select) — options depend on recipient */}
               <div className="mb-12">
                 <div className="mb-6 flex items-start gap-4">
                   <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-500/10 font-black text-indigo-400">
@@ -1577,7 +1660,7 @@ export default function Home() {
                 </div>
 
                 <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
-                  {ageRanges.map((item) => (
+                  {availableAgeRanges.map((item) => (
                     <button
                       key={item.value}
                       onClick={() => {
