@@ -134,6 +134,7 @@ export default function Home() {
   const [showResults, setShowResults] = useState(false);
 
   const [mysteryRecipient, setMysteryRecipient] = useState("Friend");
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const [referrals, setReferrals] = useState(0);
   const [copied, setCopied] = useState(false);
@@ -838,16 +839,94 @@ export default function Home() {
                   behavior: "smooth",
                 })
               }
-              className={`rounded-full px-5 py-2.5 text-sm font-black text-white shadow-lg transition hover:-translate-y-0.5 ${
+              className={`rounded-full px-4 py-2.5 text-sm font-black text-white shadow-lg transition hover:-translate-y-0.5 md:px-5 ${
                 isHalloween
                   ? "bg-orange-600 hover:bg-orange-500"
                   : "bg-slate-900 hover:bg-pink-600"
               }`}
             >
-              🎁 Mystery Gift
+              <span className="md:hidden">🎁</span>
+              <span className="hidden md:inline">🎁 Mystery Gift</span>
+            </button>
+
+            {/* Mobile menu toggle — only visible below md */}
+            <button
+              onClick={() => setMobileMenuOpen((open) => !open)}
+              aria-label="Toggle menu"
+              aria-expanded={mobileMenuOpen}
+              className={`flex h-10 w-10 items-center justify-center rounded-full text-lg font-black transition md:hidden ${
+                isHalloween
+                  ? "bg-purple-950 text-white"
+                  : "bg-slate-100 text-slate-700"
+              }`}
+            >
+              {mobileMenuOpen ? "✕" : "☰"}
             </button>
           </div>
         </div>
+
+        {/* Mobile dropdown menu */}
+        {mobileMenuOpen && (
+          <div
+            className={`border-t px-5 py-4 md:hidden ${
+              isHalloween
+                ? "border-purple-900/40 bg-[#0b0812]"
+                : "border-slate-200 bg-white"
+            }`}
+          >
+            <div
+              className={`flex flex-col gap-1 text-base font-bold ${
+                isHalloween ? "text-purple-200" : "text-slate-700"
+              }`}
+            >
+              <a
+                href="#finder"
+                onClick={() => setMobileMenuOpen(false)}
+                className="rounded-xl px-3 py-3 hover:bg-pink-500/10 hover:text-pink-500"
+              >
+                Gift Finder
+              </a>
+
+              <a
+                href="#mystery"
+                onClick={() => setMobileMenuOpen(false)}
+                className="rounded-xl px-3 py-3 hover:bg-purple-500/10 hover:text-purple-500"
+              >
+                Mystery Gifts
+              </a>
+
+              <a
+                href="#rewards"
+                onClick={() => setMobileMenuOpen(false)}
+                className="rounded-xl px-3 py-3 hover:bg-orange-500/10 hover:text-orange-500"
+              >
+                Rewards
+              </a>
+
+              <a
+                href="#how"
+                onClick={() => setMobileMenuOpen(false)}
+                className="rounded-xl px-3 py-3 hover:bg-pink-500/10 hover:text-pink-500"
+              >
+                How It Works
+              </a>
+
+              <button
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  logout();
+                }}
+                className={`mt-2 rounded-xl px-3 py-3 text-left ${
+                  isHalloween
+                    ? "bg-purple-950 text-purple-200"
+                    : "bg-slate-100 text-slate-600"
+                }`}
+              >
+                Logout
+              </button>
+            </div>
+          </div>
+        )}
       </nav>
 
       {/* HERO */}
@@ -892,7 +971,7 @@ export default function Home() {
           </div>
 
           <h1
-            className={`text-5xl font-black leading-[1.05] tracking-tight md:text-7xl ${
+            className={`text-4xl font-black leading-[1.1] tracking-tight sm:text-5xl md:text-7xl ${
               isHalloween ? "text-white" : ""
             }`}
           >
@@ -2079,7 +2158,7 @@ export default function Home() {
               </p>
             </div>
 
-            <div className="flex gap-10 text-sm text-slate-400">
+            <div className="flex flex-wrap gap-10 text-sm text-slate-400">
               <div>
                 <div className="mb-3 font-bold text-white">Explore</div>
 
