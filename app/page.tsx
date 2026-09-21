@@ -149,11 +149,15 @@ export default function Home() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [authLoading, setAuthLoading] = useState(false);
+  const [guestLoading, setGuestLoading] = useState(false);
   const [authMessage, setAuthMessage] = useState("");
   const [referralRequired, setReferralRequired] = useState(false);
 
   // Terms & Privacy Policy acceptance — required before creating an account.
   const [termsAccepted, setTermsAccepted] = useState(false);
+
+  // Whether the current session is an anonymous / guest session.
+  const isGuest = Boolean(user?.is_anonymous);
 
   const selectedBudget = budgets.find((b) => b.label === budget);
   const isHalloween = occasion === "Halloween";
@@ -208,6 +212,15 @@ export default function Home() {
 
       setUser(currentUser);
 
+      // Guest (anonymous) users don't have a profile row / referral code —
+      // skip the referral lookups for them entirely.
+      if (currentUser.is_anonymous) {
+        setReferralId("");
+        setReferrals(0);
+        setClaimedRewards([]);
+        return;
+      }
+
       const { data: profile, error: profileError } = await supabase
         .from("profiles")
         .select("referral_code")
@@ -259,7 +272,7 @@ export default function Home() {
       } = await supabase.auth.getSession();
 
       if (session?.user) {
-        if (cleanRef) {
+        if (cleanRef && !session.user.is_anonymous) {
           const { error: referralError } = await supabase.rpc(
             "register_referral",
             {
@@ -298,7 +311,7 @@ export default function Home() {
           "giftmatch_pending_referral"
         );
 
-        if (pendingReferral) {
+        if (pendingReferral && !session.user.is_anonymous) {
           const { error: referralError } = await supabase.rpc(
             "register_referral",
             {
@@ -446,6 +459,27 @@ export default function Home() {
     setAuthLoading(true);
     setAuthMessage("");
 
+    // If the current session is a guest (anonymous) session, upgrade it
+    // in place instead of creating a brand new account — this preserves
+    // the guest's user id, referral attribution, and any data tied to it.
+    if (authMode === "signup" && isGuest) {
+      const { data, error } = await supabase.auth.updateUser({
+        email,
+        password,
+      });
+
+      if (error) {
+        setAuthMessage(error.message);
+      } else {
+        setAuthMessage(
+          "Almost done! Check your email to confirm and finish upgrading your account."
+        );
+      }
+
+      setAuthLoading(false);
+      return;
+    }
+
     if (authMode === "signup") {
       const { data, error } = await supabase.auth.signUp({
         email,
@@ -473,6 +507,23 @@ export default function Home() {
     }
 
     setAuthLoading(false);
+  }
+
+  // Continue without creating an account — signs the visitor in with a
+  // temporary, anonymous Supabase session (Authentication → Providers →
+  // Anonymous Sign-Ins must be enabled in the Supabase dashboard).
+  async function handleGuestLogin() {
+    setGuestLoading(true);
+    setAuthMessage("");
+
+    const { error } = await supabase.auth.signInAnonymously();
+
+    if (error) {
+      setAuthMessage(error.message);
+    }
+    // On success, onAuthStateChange fires and sets the user for us.
+
+    setGuestLoading(false);
   }
 
   // Sends a password-reset email via Supabase. The link Supabase
@@ -511,7 +562,7 @@ export default function Home() {
   }
 
   async function claimReward(target: number) {
-    if (!user) return;
+    if (!user || isGuest) return;
 
     if (referrals < target || claimedRewards.includes(target)) {
       return;
@@ -681,7 +732,9 @@ export default function Home() {
                     authMode === "forgot" ? handleForgotPassword : handleAuth
                   }
                   disabled={
-                    authLoading || (authMode === "signup" && !termsAccepted)
+                    authLoading ||
+                    guestLoading ||
+                    (authMode === "signup" && !termsAccepted)
                   }
                   className="w-full rounded-xl bg-gradient-to-r from-pink-600 to-purple-600 py-4 font-black text-white transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0"
                 >
@@ -693,6 +746,27 @@ export default function Home() {
                     ? "Send Reset Link"
                     : "Login"}
                 </button>
+
+                {/* Continue as Guest — anonymous Supabase session, no email required */}
+                {authMode !== "forgot" && (
+                  <>
+                    <div className="flex items-center gap-3 py-1">
+                      <div className="h-px flex-1 bg-purple-900/50" />
+                      <span className="text-xs font-bold text-purple-400">
+                        OR
+                      </span>
+                      <div className="h-px flex-1 bg-purple-900/50" />
+                    </div>
+
+                    <button
+                      onClick={handleGuestLogin}
+                      disabled={authLoading || guestLoading}
+                      className="w-full rounded-xl border-2 border-purple-800 bg-transparent py-4 font-black text-purple-200 transition hover:border-pink-500 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {guestLoading ? "Please wait..." : "👤 Continue as Guest"}
+                    </button>
+                  </>
+                )}
               </div>
 
               <div className="mt-6 text-center text-sm text-purple-300">
@@ -822,6 +896,18 @@ export default function Home() {
           </div>
 
           <div className="flex items-center gap-2">
+            {isGuest && (
+              <button
+                onClick={() => {
+                  logout();
+                }}
+                className="hidden rounded-full bg-yellow-500/20 px-4 py-2 text-xs font-black text-yellow-500 md:block"
+                title="You're browsing as a guest. Log out to create a full account."
+              >
+                Guest Mode
+              </button>
+            )}
+
             <button
               onClick={logout}
               className={`hidden rounded-full px-4 py-2 text-xs font-black md:block ${
@@ -864,6 +950,26 @@ export default function Home() {
             </button>
           </div>
         </div>
+
+        {/* Guest banner — prompts an anonymous session to create a real account */}
+        {isGuest && (
+          <div
+            className={`px-5 py-2.5 text-center text-xs font-bold md:text-sm ${
+              isHalloween
+                ? "bg-orange-950/40 text-orange-300"
+                : "bg-yellow-50 text-yellow-800"
+            }`}
+          >
+            You're browsing as a guest — referrals & rewards need a full
+            account.{" "}
+            <button
+              onClick={logout}
+              className="underline underline-offset-2"
+            >
+              Create one now
+            </button>
+          </div>
+        )}
 
         {/* Mobile dropdown menu */}
         {mobileMenuOpen && (
@@ -1243,269 +1349,314 @@ export default function Home() {
             </p>
           </div>
 
-          {/* REFERRAL BOX */}
-          <div
-            className={`mt-12 overflow-hidden rounded-[2rem] border shadow-2xl ${
-              isHalloween
-                ? "border-purple-900/50 bg-gradient-to-br from-[#171020] to-[#0d0912]"
-                : "border-slate-200 bg-white"
-            }`}
-          >
+          {isGuest ? (
+            /* Guests have no referral code / profile row — prompt to upgrade instead */
             <div
-              className={`p-7 md:p-10 ${
+              className={`mx-auto mt-12 max-w-2xl rounded-[2rem] border p-10 text-center shadow-2xl ${
                 isHalloween
-                  ? "bg-gradient-to-r from-purple-950/70 to-orange-950/30"
-                  : "bg-gradient-to-r from-purple-50 to-pink-50"
+                  ? "border-purple-900/50 bg-[#171020]"
+                  : "border-slate-200 bg-white"
               }`}
             >
-              <div className="flex flex-col gap-8 md:flex-row md:items-center md:justify-between">
-                <div>
-                  <div
-                    className={`text-sm font-black uppercase tracking-widest ${
-                      isHalloween ? "text-orange-400" : "text-purple-600"
-                    }`}
-                  >
-                    Your referral code
-                  </div>
+              <div className="text-5xl">🔒</div>
 
-                  <div
-                    className={`mt-2 text-4xl font-black tracking-widest ${
-                      isHalloween ? "text-white" : ""
-                    }`}
-                  >
-                    {referralId || "------"}
-                  </div>
+              <h3
+                className={`mt-5 text-2xl font-black ${
+                  isHalloween ? "text-white" : ""
+                }`}
+              >
+                Create a free account to unlock referrals
+              </h3>
 
-                  <p
-                    className={`mt-2 text-sm ${
-                      isHalloween ? "text-purple-300" : "text-slate-500"
-                    }`}
-                  >
-                    Share your personal link with friends.
-                  </p>
-                </div>
+              <p
+                className={`mt-3 ${
+                  isHalloween ? "text-purple-300" : "text-slate-500"
+                }`}
+              >
+                Guest sessions don't get a referral link. Sign up with an
+                email to get your code and start earning mystery gifts.
+              </p>
 
-                <div className="flex flex-col gap-3">
-                  <button
-                    onClick={copyReferralLink}
-                    className={`rounded-2xl px-7 py-4 font-black text-white shadow-lg transition hover:-translate-y-1 ${
-                      copied
-                        ? "bg-emerald-600"
-                        : isHalloween
-                        ? "bg-orange-600 hover:bg-orange-500"
-                        : "bg-purple-600 hover:bg-purple-700"
-                    }`}
-                  >
-                    {copied ? "✓ Link Copied!" : "🔗 Copy Referral Link"}
-                  </button>
-                </div>
-              </div>
-
-              {referralLink && (
+              <button
+                onClick={logout}
+                className={`mt-7 rounded-2xl px-7 py-4 font-black text-white shadow-lg transition hover:-translate-y-1 ${
+                  isHalloween
+                    ? "bg-orange-600 hover:bg-orange-500"
+                    : "bg-purple-600 hover:bg-purple-700"
+                }`}
+              >
+                Create Free Account
+              </button>
+            </div>
+          ) : (
+            <>
+              {/* REFERRAL BOX */}
+              <div
+                className={`mt-12 overflow-hidden rounded-[2rem] border shadow-2xl ${
+                  isHalloween
+                    ? "border-purple-900/50 bg-gradient-to-br from-[#171020] to-[#0d0912]"
+                    : "border-slate-200 bg-white"
+                }`}
+              >
                 <div
-                  className={`mt-8 rounded-2xl border p-4 text-sm ${
+                  className={`p-7 md:p-10 ${
                     isHalloween
-                      ? "border-purple-800 bg-black/20 text-purple-200"
-                      : "border-purple-100 bg-white text-slate-600"
+                      ? "bg-gradient-to-r from-purple-950/70 to-orange-950/30"
+                      : "bg-gradient-to-r from-purple-50 to-pink-50"
                   }`}
                 >
-                  <span className="font-bold">Your link:</span>{" "}
-                  <span className="break-all">{referralLink}</span>
-                </div>
-              )}
-            </div>
+                  <div className="flex flex-col gap-8 md:flex-row md:items-center md:justify-between">
+                    <div>
+                      <div
+                        className={`text-sm font-black uppercase tracking-widest ${
+                          isHalloween ? "text-orange-400" : "text-purple-600"
+                        }`}
+                      >
+                        Your referral code
+                      </div>
 
-            {/* COUNT */}
-            <div className="grid gap-6 p-7 md:grid-cols-3 md:p-10">
-              <div
-                className={`rounded-2xl p-6 text-center ${
-                  isHalloween ? "bg-purple-950/40" : "bg-purple-50"
-                }`}
-              >
-                <div className="text-4xl">👥</div>
+                      <div
+                        className={`mt-2 text-4xl font-black tracking-widest ${
+                          isHalloween ? "text-white" : ""
+                        }`}
+                      >
+                        {referralId || "------"}
+                      </div>
 
-                <div
-                  className={`mt-3 text-4xl font-black ${
-                    isHalloween ? "text-white" : "text-purple-700"
-                  }`}
-                >
-                  {referrals}
-                </div>
+                      <p
+                        className={`mt-2 text-sm ${
+                          isHalloween ? "text-purple-300" : "text-slate-500"
+                        }`}
+                      >
+                        Share your personal link with friends.
+                      </p>
+                    </div>
 
-                <div
-                  className={`mt-1 text-sm font-bold ${
-                    isHalloween ? "text-purple-300" : "text-slate-500"
-                  }`}
-                >
-                  Referrals
-                </div>
-              </div>
+                    <div className="flex flex-col gap-3">
+                      <button
+                        onClick={copyReferralLink}
+                        className={`rounded-2xl px-7 py-4 font-black text-white shadow-lg transition hover:-translate-y-1 ${
+                          copied
+                            ? "bg-emerald-600"
+                            : isHalloween
+                            ? "bg-orange-600 hover:bg-orange-500"
+                            : "bg-purple-600 hover:bg-purple-700"
+                        }`}
+                      >
+                        {copied ? "✓ Link Copied!" : "🔗 Copy Referral Link"}
+                      </button>
+                    </div>
+                  </div>
 
-              <div
-                className={`rounded-2xl p-6 text-center ${
-                  isHalloween ? "bg-orange-950/30" : "bg-orange-50"
-                }`}
-              >
-                <div className="text-4xl">🎁</div>
-
-                <div
-                  className={`mt-3 text-4xl font-black ${
-                    isHalloween ? "text-orange-400" : "text-orange-600"
-                  }`}
-                >
-                  {claimedRewards.length}
-                </div>
-
-                <div
-                  className={`mt-1 text-sm font-bold ${
-                    isHalloween ? "text-purple-300" : "text-slate-500"
-                  }`}
-                >
-                  Rewards Claimed
-                </div>
-              </div>
-
-              <div
-                className={`rounded-2xl p-6 text-center ${
-                  isHalloween ? "bg-emerald-950/30" : "bg-emerald-50"
-                }`}
-              >
-                <div className="text-4xl">🏆</div>
-
-                <div
-                  className={`mt-3 text-2xl font-black ${
-                    isHalloween ? "text-emerald-400" : "text-emerald-700"
-                  }`}
-                >
-                  {referrals >= 25 ? "MAX LEVEL" : `${nextReward.referrals - referrals} left`}
-                </div>
-
-                <div
-                  className={`mt-1 text-sm font-bold ${
-                    isHalloween ? "text-purple-300" : "text-slate-500"
-                  }`}
-                >
-                  Until next reward
-                </div>
-              </div>
-            </div>
-
-            {/* PROGRESS */}
-            <div className="px-7 pb-10 md:px-10">
-              <div className="flex items-center justify-between text-sm font-bold">
-                <span
-                  className={
-                    isHalloween ? "text-purple-300" : "text-slate-500"
-                  }
-                >
-                  Referral progress
-                </span>
-
-                <span
-                  className={
-                    isHalloween ? "text-orange-400" : "text-purple-600"
-                  }
-                >
-                  {referrals >= 25
-                    ? "25+ referrals"
-                    : `${referrals} / ${nextReward.referrals}`}
-                </span>
-              </div>
-
-              <div
-                className={`mt-3 h-4 overflow-hidden rounded-full ${
-                  isHalloween ? "bg-purple-950" : "bg-slate-100"
-                }`}
-              >
-                <div
-                  className="h-full rounded-full bg-gradient-to-r from-pink-500 via-purple-600 to-orange-500 transition-all duration-700"
-                  style={{
-                    width: `${referrals >= 25 ? 100 : progress}%`,
-                  }}
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* REWARD CARDS */}
-          <div className="mt-8 grid gap-5 md:grid-cols-3">
-            {referralRewards.map((reward) => {
-              const unlocked = referrals >= reward.referrals;
-
-              const claimed = claimedRewards.includes(reward.referrals);
-
-              return (
-                <div
-                  key={reward.referrals}
-                  className={`rounded-3xl border p-6 transition ${
-                    unlocked
-                      ? isHalloween
-                        ? "border-orange-500/50 bg-orange-950/20 shadow-xl shadow-orange-950/20"
-                        : "border-orange-300 bg-orange-50 shadow-xl"
-                      : isHalloween
-                      ? "border-purple-900/50 bg-[#15101d]"
-                      : "border-slate-200 bg-white"
-                  }`}
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="text-4xl">{reward.emoji}</div>
-
+                  {referralLink && (
                     <div
-                      className={`rounded-full px-3 py-1 text-xs font-black ${
-                        claimed
-                          ? "bg-emerald-500 text-white"
-                          : unlocked
-                          ? "bg-emerald-500 text-white"
-                          : "bg-slate-100 text-slate-500"
+                      className={`mt-8 rounded-2xl border p-4 text-sm ${
+                        isHalloween
+                          ? "border-purple-800 bg-black/20 text-purple-200"
+                          : "border-purple-100 bg-white text-slate-600"
                       }`}
                     >
-                      {claimed
-                        ? "CLAIMED"
-                        : unlocked
-                        ? "UNLOCKED"
-                        : "LOCKED"}
+                      <span className="font-bold">Your link:</span>{" "}
+                      <span className="break-all">{referralLink}</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* COUNT */}
+                <div className="grid gap-6 p-7 md:grid-cols-3 md:p-10">
+                  <div
+                    className={`rounded-2xl p-6 text-center ${
+                      isHalloween ? "bg-purple-950/40" : "bg-purple-50"
+                    }`}
+                  >
+                    <div className="text-4xl">👥</div>
+
+                    <div
+                      className={`mt-3 text-4xl font-black ${
+                        isHalloween ? "text-white" : "text-purple-700"
+                      }`}
+                    >
+                      {referrals}
+                    </div>
+
+                    <div
+                      className={`mt-1 text-sm font-bold ${
+                        isHalloween ? "text-purple-300" : "text-slate-500"
+                      }`}
+                    >
+                      Referrals
                     </div>
                   </div>
 
                   <div
-                    className={`mt-5 text-sm font-black uppercase tracking-widest ${
-                      isHalloween ? "text-purple-400" : "text-slate-400"
+                    className={`rounded-2xl p-6 text-center ${
+                      isHalloween ? "bg-orange-950/30" : "bg-orange-50"
                     }`}
                   >
-                    {reward.referrals} referrals
+                    <div className="text-4xl">🎁</div>
+
+                    <div
+                      className={`mt-3 text-4xl font-black ${
+                        isHalloween ? "text-orange-400" : "text-orange-600"
+                      }`}
+                    >
+                      {claimedRewards.length}
+                    </div>
+
+                    <div
+                      className={`mt-1 text-sm font-bold ${
+                        isHalloween ? "text-purple-300" : "text-slate-500"
+                      }`}
+                    >
+                      Rewards Claimed
+                    </div>
                   </div>
 
-                  <h3
-                    className={`mt-2 text-xl font-black ${
-                      isHalloween ? "text-white" : ""
+                  <div
+                    className={`rounded-2xl p-6 text-center ${
+                      isHalloween ? "bg-emerald-950/30" : "bg-emerald-50"
                     }`}
                   >
-                    {reward.reward}
-                  </h3>
+                    <div className="text-4xl">🏆</div>
 
-                  <button
-                    disabled={Boolean(unlocked && claimed)}
-                    onClick={() => claimReward(reward.referrals)}
-                    className={`mt-6 w-full rounded-xl py-3 font-black transition ${
-                      claimed
-                        ? "cursor-default bg-emerald-100 text-emerald-700"
-                        : unlocked
-                        ? isHalloween
-                          ? "bg-orange-600 text-white hover:bg-orange-500"
-                          : "bg-purple-600 text-white hover:bg-purple-700"
-                        : "cursor-not-allowed bg-slate-100 text-slate-400"
+                    <div
+                      className={`mt-3 text-2xl font-black ${
+                        isHalloween ? "text-emerald-400" : "text-emerald-700"
+                      }`}
+                    >
+                      {referrals >= 25
+                        ? "MAX LEVEL"
+                        : `${nextReward.referrals - referrals} left`}
+                    </div>
+
+                    <div
+                      className={`mt-1 text-sm font-bold ${
+                        isHalloween ? "text-purple-300" : "text-slate-500"
+                      }`}
+                    >
+                      Until next reward
+                    </div>
+                  </div>
+                </div>
+
+                {/* PROGRESS */}
+                <div className="px-7 pb-10 md:px-10">
+                  <div className="flex items-center justify-between text-sm font-bold">
+                    <span
+                      className={
+                        isHalloween ? "text-purple-300" : "text-slate-500"
+                      }
+                    >
+                      Referral progress
+                    </span>
+
+                    <span
+                      className={
+                        isHalloween ? "text-orange-400" : "text-purple-600"
+                      }
+                    >
+                      {referrals >= 25
+                        ? "25+ referrals"
+                        : `${referrals} / ${nextReward.referrals}`}
+                    </span>
+                  </div>
+
+                  <div
+                    className={`mt-3 h-4 overflow-hidden rounded-full ${
+                      isHalloween ? "bg-purple-950" : "bg-slate-100"
                     }`}
                   >
-                    {claimed
-                      ? "✓ Reward Claimed"
-                      : unlocked
-                      ? "🎁 Claim Reward"
-                      : `🔒 Need ${reward.referrals - referrals} more referrals`}
-                  </button>
+                    <div
+                      className="h-full rounded-full bg-gradient-to-r from-pink-500 via-purple-600 to-orange-500 transition-all duration-700"
+                      style={{
+                        width: `${referrals >= 25 ? 100 : progress}%`,
+                      }}
+                    />
+                  </div>
                 </div>
-              );
-            })}
-          </div>
+              </div>
+
+              {/* REWARD CARDS */}
+              <div className="mt-8 grid gap-5 md:grid-cols-3">
+                {referralRewards.map((reward) => {
+                  const unlocked = referrals >= reward.referrals;
+
+                  const claimed = claimedRewards.includes(reward.referrals);
+
+                  return (
+                    <div
+                      key={reward.referrals}
+                      className={`rounded-3xl border p-6 transition ${
+                        unlocked
+                          ? isHalloween
+                            ? "border-orange-500/50 bg-orange-950/20 shadow-xl shadow-orange-950/20"
+                            : "border-orange-300 bg-orange-50 shadow-xl"
+                          : isHalloween
+                          ? "border-purple-900/50 bg-[#15101d]"
+                          : "border-slate-200 bg-white"
+                      }`}
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="text-4xl">{reward.emoji}</div>
+
+                        <div
+                          className={`rounded-full px-3 py-1 text-xs font-black ${
+                            claimed
+                              ? "bg-emerald-500 text-white"
+                              : unlocked
+                              ? "bg-emerald-500 text-white"
+                              : "bg-slate-100 text-slate-500"
+                          }`}
+                        >
+                          {claimed
+                            ? "CLAIMED"
+                            : unlocked
+                            ? "UNLOCKED"
+                            : "LOCKED"}
+                        </div>
+                      </div>
+
+                      <div
+                        className={`mt-5 text-sm font-black uppercase tracking-widest ${
+                          isHalloween ? "text-purple-400" : "text-slate-400"
+                        }`}
+                      >
+                        {reward.referrals} referrals
+                      </div>
+
+                      <h3
+                        className={`mt-2 text-xl font-black ${
+                          isHalloween ? "text-white" : ""
+                        }`}
+                      >
+                        {reward.reward}
+                      </h3>
+
+                      <button
+                        disabled={Boolean(unlocked && claimed)}
+                        onClick={() => claimReward(reward.referrals)}
+                        className={`mt-6 w-full rounded-xl py-3 font-black transition ${
+                          claimed
+                            ? "cursor-default bg-emerald-100 text-emerald-700"
+                            : unlocked
+                            ? isHalloween
+                              ? "bg-orange-600 text-white hover:bg-orange-500"
+                              : "bg-purple-600 text-white hover:bg-purple-700"
+                            : "cursor-not-allowed bg-slate-100 text-slate-400"
+                        }`}
+                      >
+                        {claimed
+                          ? "✓ Reward Claimed"
+                          : unlocked
+                          ? "🎁 Claim Reward"
+                          : `🔒 Need ${reward.referrals - referrals} more referrals`}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
         </div>
       </section>
 
